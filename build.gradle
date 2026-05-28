@@ -95,6 +95,7 @@ dependencies {
     implementation("maven.modrinth:create-radars:0.4.8-1.21.1")
     implementation("maven.modrinth:create-big-cannons:bsGaXKEd")
     implementation("maven.modrinth:rpl:hZ6B2Z0x")
+    implementation 'javazoom:jlayer:1.0.1'
 
     // JEI (Just Enough Items)
     compileOnly("mezz.jei:jei-1.21.1-neoforge-api:19.21.0.247")
