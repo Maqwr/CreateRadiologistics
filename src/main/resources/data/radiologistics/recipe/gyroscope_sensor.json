@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "A": {
+      "item": "create:andesite_alloy"
+    },
+    "B": {
+      "item": "create:andesite_casing"
+    },
+    "C": {
+      "item": "minecraft:compass"
+    },
+    "O": {
+      "item": "minecraft:comparator"
+    },
+    "W": {
+      "item": "create:cogwheel"
+    }
+  },
+  "pattern": [
+    " C ",
+    "WOW",
+    "ABA"
+  ],
+  "result": {
+    "count": 1,
+    "id": "radiologistics:gyroscope_sensor"
+  }
+}

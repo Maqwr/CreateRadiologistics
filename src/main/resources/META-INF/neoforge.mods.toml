@@ -1,0 +1,59 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[mods]]
+modId = "radiologistics"
+version = "1.0.0"
+displayName = "Create: Radiologistics"
+authors = "Antigravity"
+description = "Adds wireless radio networks and node-based algorithm programming to Minecraft as a Create addon."
+logoFile = "logo.png"
+mixins = [
+    "radiologistics.mixins.json"
+]
+
+[[dependencies.radiologistics]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.206,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.radiologistics]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.22)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.radiologistics]]
+modId = "create"
+type = "required"
+versionRange = "[0.6,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.radiologistics]]
+modId = "createbigcannons"
+type = "optional"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.radiologistics]]
+modId = "create_radar"
+type = "optional"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.radiologistics]]
+modId = "create_aeronautics"
+type = "optional"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.radiologistics]]
+modId = "aeronautics_bundled"
+type = "optional"
+ordering = "AFTER"
+side = "BOTH"

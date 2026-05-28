@@ -1,0 +1,15 @@
+{
+  "gui.radiologistics.signal_range": "Signalreichweite: %d Blöcke",
+  "block.radiologistics.main_computer": "Hauptcomputer",
+  "block.radiologistics.radio_transmitter": "Funksender",
+  "block.radiologistics.redstone_link_module": "Redstone-Link-Modul",
+  "block.radiologistics.memory_module": "Speichermodul",
+  "block.radiologistics.gyroscope_sensor": "Gyroskopsensor",
+  "block.radiologistics.antenna": "Antenne",
+  "block.radiologistics.jammer": "Störsender",
+  "block.radiologistics.audio_module": "Audiomodul",
+  "item.radiologistics.wired_inertia_fuze": "Kabelgebundener Trägheitszünder",
+  "itemGroup.radiologistics_tab": "Create: Radiologistics",
+  "tooltip.radiologistics.hold_shift": "Halte Shift für Details",
+  "tooltip.radiologistics.wired_inertia_fuze": "Agiert als Aufschlagzünder.\n- Kann in große Kanonengeschosse eingesetzt werden.\n- Wenn das Geschoss mit Redstone aktiviert wird, fliegt es in Blickrichtung los, ohne vorzeitig zu explodieren."
+}

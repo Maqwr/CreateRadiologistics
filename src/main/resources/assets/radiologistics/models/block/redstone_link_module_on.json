@@ -1,0 +1,7 @@
+{
+	"parent": "radiologistics:block/redstone_link_module",
+	"textures": {
+		"0": "radiologistics:block/redstoneprovidertexon",
+		"particle": "radiologistics:block/redstoneprovidertexon"
+	}
+}

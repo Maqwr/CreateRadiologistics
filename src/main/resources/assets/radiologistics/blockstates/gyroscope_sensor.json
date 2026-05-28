@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "radiologistics:block/gyroscope_sensor" },
+    "facing=south": { "model": "radiologistics:block/gyroscope_sensor", "y": 180 },
+    "facing=west": { "model": "radiologistics:block/gyroscope_sensor", "y": 270 },
+    "facing=east": { "model": "radiologistics:block/gyroscope_sensor", "y": 90 }
+  }
+}

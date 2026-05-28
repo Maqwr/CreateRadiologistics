@@ -1,0 +1,134 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.78'
+}
+
+group = 'com.radiologistics.create'
+version = '1.0.0'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "Create's Maven"
+        url = "https://maven.createmod.net"
+    }
+    maven {
+        name = "Modrinth Maven"
+        url = "https://api.modrinth.com/maven"
+    }
+    maven {
+        name = "Ithundxr's Releases"
+        url = "https://maven.ithundxr.dev/releases"
+    }
+    maven {
+        name = "Ithundxr's Snapshots"
+        url = "https://maven.ithundxr.dev/snapshots"
+    }
+    maven {
+        name = "tterrag Maven"
+        url = "https://maven.tterrag.com"
+    }
+    maven {
+        name = "JEI Maven"
+        url = "https://dvs1.progwml6.com/files/maven/"
+    }
+    maven {
+        name = "BlameJared Maven"
+        url = "https://maven.blamejared.com/"
+    }
+    maven {
+        name = "Shedaniel Maven"
+        url = "https://maven.shedaniel.me/"
+    }
+    maven {
+        name = "Curios Maven"
+        url = "https://maven.theillusivec4.top/"
+    }
+    maven {
+        name = "Architectury Maven"
+        url = "https://maven.architectury.dev/"
+    }
+    maven {
+        name = "FTB Mods Maven"
+        url = "https://maven.ftb.dev/"
+    }
+    maven {
+        name = "Saps Maven"
+        url = "https://maven.saps.dev/minecraft"
+    }
+    maven {
+        name = "CC: Tweaked Maven"
+        url = "https://maven.squiddev.cc/"
+    }
+    maven {
+        name = "JourneyMap Maven"
+        url = "https://jm.gserv.me/repository/maven-public/"
+    }
+}
+
+dependencies {
+    // Create Mod Dependency
+    implementation("maven.modrinth:create:UjX6dr61") {
+        exclude group: "mezz.jei"
+        exclude group: "dev.ftb.mods"
+        exclude group: "info.journeymap"
+        exclude group: "top.theillusivec4.curios"
+        exclude group: "cc.tweaked"
+        exclude group: "dev.architectury"
+    }
+    
+    // CC: Tweaked Maven
+    compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-1.21.1:1.0.6")
+    runtimeOnly("dev.engine-room.flywheel:flywheel-neoforge-1.21.1:1.0.6")
+
+    // Ponder dependency (required by Create 6.0.10 at runtime)
+    implementation("net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1")
+    
+    // Registrate dependency (required by Create 6.0.10 at runtime)
+    implementation("com.tterrag.registrate:Registrate:MC1.21-1.3.0+67")
+
+    // Create: Aeronautics & Sable dependencies
+    implementation("maven.modrinth:sable:3FMsUjO4")
+    implementation("maven.modrinth:create-aeronautics:1.2.1+mc1.21.1")
+    implementation("maven.modrinth:create-radars:0.4.8-1.21.1")
+    implementation("maven.modrinth:create-big-cannons:bsGaXKEd")
+    implementation("maven.modrinth:rpl:hZ6B2Z0x")
+
+    // JEI (Just Enough Items)
+    compileOnly("mezz.jei:jei-1.21.1-neoforge-api:19.21.0.247")
+    runtimeOnly("mezz.jei:jei-1.21.1-neoforge:19.21.0.247")
+    
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+    testImplementation 'org.mockito:mockito-core:5.11.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+    testCompileOnly files(sourceSets.main.compileClasspath)
+    testRuntimeOnly files(sourceSets.main.compileClasspath)
+}
+
+test {
+    useJUnitPlatform()
+    enabled = true
+}
+
+neoForge {
+    version = '21.1.219'
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.logging.console.level', 'debug'
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        radiologistics {
+            sourceSet sourceSets.main
+        }
+    }
+}

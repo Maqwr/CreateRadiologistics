@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "type=base": { "model": "radiologistics:block/antenna_base" },
+    "type=middle": { "model": "radiologistics:block/antenna_middle" },
+    "type=top": { "model": "radiologistics:block/antenna_top" }
+  }
+}

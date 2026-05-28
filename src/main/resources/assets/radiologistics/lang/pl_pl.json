@@ -1,0 +1,15 @@
+{
+  "gui.radiologistics.signal_range": "Zasięg sygnału: %d bloków",
+  "block.radiologistics.main_computer": "Komputer Główny",
+  "block.radiologistics.radio_transmitter": "Nadajnik Radiowy",
+  "block.radiologistics.redstone_link_module": "Moduł Redstone Link",
+  "block.radiologistics.memory_module": "Moduł Pamięci",
+  "block.radiologistics.gyroscope_sensor": "Czujnik Żyroskopowy",
+  "block.radiologistics.antenna": "Antena",
+  "block.radiologistics.jammer": "Zagłuszacz",
+  "block.radiologistics.audio_module": "Moduł Dźwiękowy",
+  "item.radiologistics.wired_inertia_fuze": "Przewodowy Zapalnik Bezwładnościowy",
+  "itemGroup.radiologistics_tab": "Create: Radiologistics",
+  "tooltip.radiologistics.hold_shift": "Przytrzymaj Shift dla szczegółów",
+  "tooltip.radiologistics.wired_inertia_fuze": "Działa jako zapalnik uderzeniowy.\n- Może być umieszczony w pociskach dużych armat.\n- Gdy blok pocisku zostanie zasilony sygnałem redstone, wystrzeli pocisk w kierunku, w którym jest zwrócony, nie wybuchając na miejscu."
+}

@@ -1,0 +1,30 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "createbigcannons"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "R": {
+      "item": "createbigcannons:wired_fuze"
+    },
+    "S": {
+      "item": "createbigcannons:recoil_spring"
+    },
+    "T": {
+      "tag": "createbigcannons:impact_fuze_head"
+    }
+  },
+  "pattern": [
+    "T",
+    "S",
+    "R"
+  ],
+  "result": {
+    "count": 2,
+    "id": "radiologistics:wired_inertia_fuze"
+  }
+}

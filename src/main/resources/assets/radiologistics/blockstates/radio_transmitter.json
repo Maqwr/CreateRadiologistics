@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "facing=down": { "model": "radiologistics:block/radio_transmitter", "x": 180 },
+    "facing=up": { "model": "radiologistics:block/radio_transmitter" },
+    "facing=north": { "model": "radiologistics:block/radio_transmitter", "x": 90 },
+    "facing=south": { "model": "radiologistics:block/radio_transmitter", "x": 90, "y": 180 },
+    "facing=east": { "model": "radiologistics:block/radio_transmitter", "x": 90, "y": 90 },
+    "facing=west": { "model": "radiologistics:block/radio_transmitter", "x": 90, "y": 270 }
+  }
+}
