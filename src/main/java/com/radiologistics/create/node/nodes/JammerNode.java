@@ -67,7 +67,7 @@ public class JammerNode extends AlgoNode {
             }
 
             int N = context.getComputer().getJammers().size();
-            int maxAllowedRange = 5 * N;
+            int maxAllowedRange = 25 * N;
 
             int size = end - start + 1;
             if (size > maxAllowedRange) {

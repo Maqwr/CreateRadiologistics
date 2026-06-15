@@ -25,9 +25,33 @@ public class ModCreativeModeTabs {
                 output.accept(ModItems.ANTENNA.get());
                 output.accept(ModItems.JAMMER.get());
                 output.accept(ModItems.AUDIO_MODULE.get());
+                output.accept(ModItems.TRANSPARENT_SCREEN.get());
+                output.accept(ModItems.PILOT_HELMET.get());
+                output.accept(ModItems.WIRE.get());
+
                 if (net.neoforged.fml.ModList.get().isLoaded("createbigcannons")) {
                     output.accept(ModItems.WIRED_INERTIA_FUZE.get());
                 }
+            })
+            .build());
+
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> VISTA_TAB =
+        CREATIVE_MODE_TABS.register("vista_tab", () -> CreativeModeTab.builder()
+            .title(Component.translatable("itemGroup.vista_tab"))
+            .icon(() -> {
+                net.minecraft.world.item.Item hollow = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                    .get(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("vista", "hollow_cassette"));
+                return (hollow != net.minecraft.world.item.Items.AIR ? hollow : ModItems.MAIN_COMPUTER.get()).getDefaultInstance();
+            })
+            .displayItems((parameters, output) -> {
+                try {
+                    for (net.minecraft.world.item.Item item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
+                        net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item);
+                        if (id.getNamespace().equals("vista")) {
+                            output.accept(item);
+                        }
+                    }
+                } catch (Exception ignored) {}
             })
             .build());
 }

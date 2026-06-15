@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "radiologistics:main_computer",
+    "radiologistics:radio_transmitter",
+    "radiologistics:redstone_link_module",
+    "radiologistics:memory_module",
+    "radiologistics:gyroscope_sensor",
+    "radiologistics:antenna",
+    "radiologistics:jammer",
+    "radiologistics:audio_module",
+    "radiologistics:transparent_screen"
+  ]
+}

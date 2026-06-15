@@ -16,13 +16,15 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.network.PacketDistributor;
 import com.radiologistics.create.network.OpenComputerScreenPacket;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 
 import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 
-public class MainComputerBlock extends Block implements EntityBlock {
+public class MainComputerBlock extends Block implements EntityBlock, com.simibubi.create.content.equipment.wrench.IWrenchable {
     public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING = net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
 
     private static final VoxelShape SHAPE = Shapes.or(
@@ -54,6 +56,11 @@ public class MainComputerBlock extends Block implements EntityBlock {
         return id.getNamespace().equals("create_radar") && id.getPath().equals("network_filterer");
     }
 
+    private static boolean isVistaItem(net.minecraft.world.item.Item item) {
+        net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item);
+        return id.getNamespace().equals("vista");
+    }
+
     private boolean isModuleItem(net.minecraft.world.item.ItemStack stack) {
         if (stack.isEmpty()) return false;
         var item = stack.getItem();
@@ -63,14 +70,64 @@ public class MainComputerBlock extends Block implements EntityBlock {
             || item == com.radiologistics.create.registry.ModItems.ANTENNA.get()
             || item == com.radiologistics.create.registry.ModItems.JAMMER.get()
             || item == com.radiologistics.create.registry.ModItems.AUDIO_MODULE.get()
+            || item == com.radiologistics.create.registry.ModItems.TRANSPARENT_SCREEN.get()
             || isNetworkFiltererItem(item);
     }
 
     @Override
     protected ItemInteractionResult useItemOn(net.minecraft.world.item.ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hitResult) {
+        if (WrenchHelper.isWrench(stack)) {
+            return WrenchHelper.handleWrench(state, level, pos, player, stack);
+        }
+        if (player.isSecondaryUseActive() && stack.isEmpty()) {
+            if (!level.isClientSide()) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof MainComputerBlockEntity computer) {
+                    net.minecraft.world.item.ItemStack oldCassette = computer.getCassette();
+                    if (!oldCassette.isEmpty()) {
+                        computer.setCassette(net.minecraft.world.item.ItemStack.EMPTY);
+                        if (!player.getInventory().add(oldCassette)) {
+                            player.drop(oldCassette, false);
+                        }
+                        player.displayClientMessage(Component.translatable("message.radiologistics.cassette_extracted").withStyle(net.minecraft.ChatFormatting.GREEN), true);
+                        return ItemInteractionResult.sidedSuccess(level.isClientSide());
+                    }
+                }
+            }
+        }
+        if (isVistaItem(stack.getItem())) {
+            if (!level.isClientSide()) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof MainComputerBlockEntity computer) {
+                    net.minecraft.world.item.ItemStack oldCassette = computer.getCassette();
+                    net.minecraft.world.item.ItemStack newCassette = stack.copy();
+                    newCassette.setCount(1);
+                    computer.setCassette(newCassette);
+                    if (!player.getAbilities().instabuild) {
+                        stack.shrink(1);
+                    }
+                    if (!oldCassette.isEmpty()) {
+                        if (!player.getInventory().add(oldCassette)) {
+                            player.drop(oldCassette, false);
+                        }
+                    }
+                    player.displayClientMessage(Component.translatable("message.radiologistics.cassette_inserted").withStyle(net.minecraft.ChatFormatting.GREEN), true);
+                }
+            }
+            return ItemInteractionResult.sidedSuccess(level.isClientSide());
+        }
         if (isModuleItem(stack)) {
             if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
                 com.radiologistics.create.network.PlayerLinkManager.setPendingLink(serverPlayer, pos);
+            }
+            return ItemInteractionResult.sidedSuccess(level.isClientSide());
+        }
+        if (stack.getItem() == com.radiologistics.create.registry.ModItems.PILOT_HELMET.get()) {
+            if (!level.isClientSide()) {
+                net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA, stack, tag -> {
+                    tag.putLong("LinkedComputer", pos.asLong());
+                });
+                player.displayClientMessage(Component.translatable("tooltip.radiologistics.helmet_linked", pos.toShortString()).withStyle(ChatFormatting.GREEN), true);
             }
             return ItemInteractionResult.sidedSuccess(level.isClientSide());
         }
@@ -88,6 +145,7 @@ public class MainComputerBlock extends Block implements EntityBlock {
                     modulesList.add(net.minecraft.nbt.StringTag.valueOf(type));
                 }
                 nbt.put("connectedModules", modulesList);
+                nbt.putInt("jammerCount", computer.getJammers().size());
                 // Send current graph NBT to the client to open the canvas
                 PacketDistributor.sendToPlayer(serverPlayer, new OpenComputerScreenPacket(pos, nbt));
             }
@@ -146,14 +204,16 @@ public class MainComputerBlock extends Block implements EntityBlock {
         if (!state.is(newState.getBlock())) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof MainComputerBlockEntity computer) {
+                if (!computer.getCassette().isEmpty()) {
+                    net.minecraft.world.Containers.dropItemStack(level, pos.getX(), pos.getY(), pos.getZ(), computer.getCassette());
+                }
                 BlockPos audioPos = computer.getModulePos("audio");
                 if (audioPos != null && !level.isClientSide()) {
-                    com.radiologistics.create.node.nodes.SoundPlayNode.stopPlaying(audioPos);
-                    com.radiologistics.create.node.nodes.TextSpeakNode.stopPlaying(audioPos);
+                    com.radiologistics.create.node.nodes.AudioPlayNode.stopPlaying(audioPos);
                     for (net.minecraft.world.entity.player.Player player : level.players()) {
                         if (player instanceof ServerPlayer serverPlayer) {
-                            PacketDistributor.sendToPlayer(serverPlayer, new com.radiologistics.create.network.PlayAudioModulePacket(audioPos, false, "url", "", 1.0, 1.0));
-                            PacketDistributor.sendToPlayer(serverPlayer, new com.radiologistics.create.network.PlayAudioModulePacket(audioPos, false, "tts", "", 1.0, 1.0));
+                            PacketDistributor.sendToPlayer(serverPlayer, new com.radiologistics.create.network.PlayAudioModulePacket(audioPos, false, "url", "", 1.0, 1.0, 0.0));
+                            PacketDistributor.sendToPlayer(serverPlayer, new com.radiologistics.create.network.PlayAudioModulePacket(audioPos, false, "tts", "", 1.0, 1.0, 0.0));
                         }
                     }
                 }

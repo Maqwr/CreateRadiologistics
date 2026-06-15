@@ -11,6 +11,7 @@ public class ComputerDisplayTarget extends SingleLineDisplayTarget {
         BlockEntity be = context.getTargetBlockEntity();
         if (be instanceof MainComputerBlockEntity computer) {
             computer.setDisplayLinkText(text.getString());
+            computer.registerDisplayLinkUpdate(context.blockEntity().getBlockPos());
         }
     }
 

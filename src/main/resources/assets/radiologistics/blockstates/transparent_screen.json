@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "radiologistics:block/transparent_screen" },
+    "facing=south": { "model": "radiologistics:block/transparent_screen", "y": 180 },
+    "facing=east": { "model": "radiologistics:block/transparent_screen", "y": 90 },
+    "facing=west": { "model": "radiologistics:block/transparent_screen", "y": 270 }
+  }
+}

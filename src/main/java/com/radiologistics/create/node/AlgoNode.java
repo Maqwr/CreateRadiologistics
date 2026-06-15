@@ -74,6 +74,7 @@ public abstract class AlgoNode {
             case "divide" -> new DivideNode(id, x, y);
             case "if" -> new IfNode(id, x, y);
             case "or" -> new OrNode(id, x, y);
+            case "and" -> new AndNode(id, x, y);
             case "floor" -> new FloorNode(id, x, y);
             case "sqrt" -> new SqrtNode(id, x, y);
             case "square" -> new SquareNode(id, x, y);
@@ -92,9 +93,10 @@ public abstract class AlgoNode {
             case "set_variable" -> new SetVariableNode(id, x, y);
             case "gyroscope" -> new GyroscopeNode(id, x, y);
             case "gyroscope_position" -> new GyroscopePositionNode(id, x, y);
-            case "antenna_input" -> new AntennaInputNode(id, x, y);
             case "antenna_output" -> new AntennaOutputNode(id, x, y);
             case "jammer" -> new JammerNode(id, x, y);
+            case "random" -> new RandomNode(id, x, y);
+            case "degree_vector" -> new DegreeVectorNode(id, x, y);
             case "bool_viewer" -> new BoolViewerNode(id, x, y);
             case "number_viewer" -> new NumberViewerNode(id, x, y);
             case "text_viewer" -> new TextViewerNode(id, x, y);
@@ -103,6 +105,23 @@ public abstract class AlgoNode {
             case "text_join" -> new TextJoinNode(id, x, y);
             case "text_speak" -> new TextSpeakNode(id, x, y);
             case "sound_play" -> new SoundPlayNode(id, x, y);
+            case "microphone" -> new MicrophoneNode(id, x, y);
+            case "audio_play" -> new AudioPlayNode(id, x, y);
+            case "helmet_pos" -> new HelmetPosNode(id, x, y);
+            case "helmet_rotation" -> new HelmetRotationNode(id, x, y);
+            case "gizmos_2d" -> new Gizmos2DNode(id, x, y);
+            case "gizmos_3d" -> new Gizmos3DNode(id, x, y);
+            case "gizmos_combine" -> new GizmosCombineNode(id, x, y);
+            case "gizmos_view" -> new GizmosViewNode(id, x, y);
+            case "helmet_screen" -> new HelmetScreenNode(id, x, y);
+            case "camera" -> new CameraNode(id, x, y);
+            case "screen" -> new ScreenNode(id, x, y);
+            case "display_board" -> new DisplayBoardNode(id, x, y);
+            case "color_rgb" -> new ColorRGBNode(id, x, y);
+            case "shape" -> new ShapeNode(id, x, y);
+            case "pos_to_rot" -> new PosToRotNode(id, x, y);
+            case "rot_to_pos" -> new RotToPosNode(id, x, y);
+            case "cannon_rot" -> new CannonRotNode(id, x, y);
             default -> null;
         };
     }

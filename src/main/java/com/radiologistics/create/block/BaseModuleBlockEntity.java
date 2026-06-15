@@ -61,4 +61,17 @@ public abstract class BaseModuleBlockEntity extends BlockEntity {
         saveAdditional(tag, registries);
         return tag;
     }
+
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection connection, net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket packet, HolderLookup.Provider lookupProvider) {
+        CompoundTag tag = packet.getTag();
+        if (tag != null) {
+            loadAdditional(tag, lookupProvider);
+        }
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+        loadAdditional(tag, lookupProvider);
+    }
 }

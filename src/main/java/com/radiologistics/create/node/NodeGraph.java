@@ -85,13 +85,16 @@ public class NodeGraph {
         evalCache.clear();
         visiting.clear();
         
-        // Find all redstone output nodes, set variable nodes, etc. and evaluate them
+        // Find all sink nodes (nodes with side effects) and evaluate them
         for (AlgoNode node : nodes.values()) {
-            if (node.getType().equals("redstone_output") || node.getType().equals("set_variable") 
+            if (node.getType().equals("redstone_output") || node.getType().equals("set_variable")
                     || node.getType().equals("antenna_output") || node.getType().equals("link_output")
                     || node.getType().equals("bool_viewer") || node.getType().equals("number_viewer")
                     || node.getType().equals("text_viewer") || node.getType().equals("jammer")
-                    || node.getType().equals("text_speak") || node.getType().equals("sound_play")) {
+                    || node.getType().equals("helmet_screen") || node.getType().equals("screen")
+                    || node.getType().equals("display_board") || node.getType().equals("camera")
+                    || node.getType().equals("display_link") || node.getType().equals("gizmos_view")
+                    || node.getType().equals("audio_play")) {
                 visiting.add(node.getId());
                 
                 Map<String, Object> inputValues = new HashMap<>();

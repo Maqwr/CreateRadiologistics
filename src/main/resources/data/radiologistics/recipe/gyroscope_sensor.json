@@ -12,7 +12,7 @@
       "item": "minecraft:compass"
     },
     "O": {
-      "item": "minecraft:comparator"
+      "item": "simulated:gimbal_sensor"
     },
     "W": {
       "item": "create:cogwheel"

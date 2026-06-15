@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.radiologistics.create'
-version = '1.0.0'
+version = '1.1.0'
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -66,6 +66,9 @@ repositories {
         name = "JourneyMap Maven"
         url = "https://jm.gserv.me/repository/maven-public/"
     }
+    maven {
+        url = 'https://maven.maxhenkel.de/repository/public'
+    }
 }
 
 dependencies {
@@ -95,7 +98,8 @@ dependencies {
     implementation("maven.modrinth:create-radars:0.4.8-1.21.1")
     implementation("maven.modrinth:create-big-cannons:bsGaXKEd")
     implementation("maven.modrinth:rpl:hZ6B2Z0x")
-    implementation 'javazoom:jlayer:1.0.1'
+    implementation("maven.modrinth:moonlight:er7S98Q1")
+    implementation("maven.modrinth:vista_tv:AaAQuN8W")
 
     // JEI (Just Enough Items)
     compileOnly("mezz.jei:jei-1.21.1-neoforge-api:19.21.0.247")
@@ -106,6 +110,8 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
     testCompileOnly files(sourceSets.main.compileClasspath)
     testRuntimeOnly files(sourceSets.main.compileClasspath)
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:2.5.0"
+    runtimeOnly("maven.modrinth:simple-voice-chat:neoforge-1.21.1-2.6.17")
 }
 
 test {
@@ -120,6 +126,8 @@ neoForge {
         client {
             client()
             systemProperty 'neoforge.logging.console.level', 'debug'
+            systemProperty 'mixin.debug.verbose', 'true'
+            systemProperty 'mixin.debug.export', 'true'
         }
         server {
             server()

@@ -11,6 +11,7 @@
   "block.radiologistics.jammer": "Глушилка",
   "block.radiologistics.audio_module": "Звуковий модуль",
   "itemGroup.radiologistics_tab": "Create: Радіологістика",
+  "itemGroup.vista_tab": "Vista",
   "tooltip.radiologistics.hold_shift": "Затисніть Shift для детальнішої інформації",
   "tooltip.radiologistics.main_computer": "Центральний процесор вашої мережі.\n§6Вузли: §rУсі базові вузли математики, логіки, тексту та змінних.\n- Натисніть ПКМ, щоб відкрити редактор алгоритмів.",
   "tooltip.radiologistics.radio_transmitter": "Транслює бездротові сигнали під напругою редстоуну.\n- Натисніть ПКМ, щоб змінити Канал і Повідомлення.\n- Виберіть його як ціль для §eАнтени§7 перед її встановленням.",
@@ -19,7 +20,7 @@
   "tooltip.radiologistics.gyroscope_sensor": "Вимірює орієнтацію та позицію у просторі.\n§6Додає вузли:\n§e- Gyroscope: §7Зчитує кути тангажу (Pitch) та рискання (Yaw).\n§e- Gyroscope Position: §7Зчитує поточні абсолютні координати датчика.",
   "tooltip.radiologistics.antenna": "Збільшує дальність передачі та прийому радіосигналу.\n§6Додає вузли:\n§e- Antenna Input: §7Зчитує вхідний радіосигнал на каналі.\n§e- Antenna Output: §7Транслює вихідний радіосигнал на каналі.\n- Виберіть передавач/комп'ютер ПКМ антеною перед встановленням.\n- Будуйте вертикально (+150 блоків дальності за сегмент).",
   "tooltip.radiologistics.jammer": "Блокує радіозв'язок у визначених діапазонах каналів.\n§6Додає вузли:\n§e- Jammer: §7Глушить обраний діапазон каналів під час роботи.",
-  "tooltip.radiologistics.audio_module": "Відтворює звук, музику та аудіотекст.\n§6Додає вузли:\n§e- Sound Play: §7Стрімить аудіо за посиланнями (WAV/MP3/YouTube).\n§e- Text Speak: §7Озвучує текст за допомогою Text-to-Speech (TTS).",
+  "tooltip.radiologistics.audio_module": "Відтворює звук, музику та аудіотекст.\n§6Додає вузли:\n§e- Audio Play: §7Відтворює будь-який аудіопотік.\n§e- Link Stream: §7Формує аудіопотік за URL (WAV/MP3/YouTube).\n§e- Text Stream: §7Формує TTS-потік з тексту.\n§e- Microphone: §7Зчитує голос гравців поруч.",
   "radiologistics.ponder.radio_transmitter.header": "Бездротовий радіопередавач",
   "radiologistics.ponder.radio_transmitter.text_1": "Радіопередавач транслює бездротові сигнали, коли він підживлюється редстоуном.",
   "radiologistics.ponder.radio_transmitter.text_2": "Натисніть правою кнопкою миші, щоб налаштувати канал (0-255) і повідомлення передачі.",
@@ -65,5 +66,274 @@
   "radiologistics.ponder.audio_module.text_1": "Спершу встановіть Головний комп'ютер. Це процесор вашої мережі.",
   "radiologistics.ponder.audio_module.text_2": "Клацніть правою кнопкою миші модулем в руці по комп'ютеру, щоб вибрати його як ціль.",
   "radiologistics.ponder.audio_module.text_3": "Потім встановіть блок модуля. Він автоматично підключиться до обраного комп'ютера.",
-  "radiologistics.ponder.audio_module.text_4": "також можна підключити display link і network controller з create radars"
+  "radiologistics.ponder.audio_module.text_4": "також можна підключити display link і network controller з create radars",
+
+  "radiologistics.node_ponder.hold_w": "Затисніть W, щоб дізнатися про цей блок",
+  "radiologistics.node_ponder.inputs": "Входи:",
+  "radiologistics.node_ponder.outputs": "Виходи:",
+  "radiologistics.node_ponder.compatible": "Сумісний з:",
+  "radiologistics.node_ponder.close": "Закрити  [Esc]",
+  "radiologistics.node_ponder.type.number": "Число",
+  "radiologistics.node_ponder.type.bool": "Булеве",
+  "radiologistics.node_ponder.type.text": "Текст",
+  "radiologistics.node_ponder.type.any": "Будь-яке",
+
+  "radiologistics.node_ponder.signal.title": "Сигнал",
+  "radiologistics.node_ponder.signal.desc": "Зчитує останнє трансльоване значення на бездротовому радіоканалі. Підключіть число або текст, щоб задати канал.",
+  "radiologistics.node_ponder.signal.compat": "Булевий переглядач, If, Or, Set Variable",
+
+  "radiologistics.node_ponder.bool.title": "Булеве",
+  "radiologistics.node_ponder.bool.desc": "Константа булевого типу (TRUE або FALSE). Натисніть кнопку у блоці, щоб переключити значення. Використовується як стала умова або прапорець.",
+  "radiologistics.node_ponder.bool.compat": "If, Or, Equal, Not Equal, Set Variable, Bool Viewer",
+
+  "radiologistics.node_ponder.number.title": "Число",
+  "radiologistics.node_ponder.number.desc": "Числова константа. Натисніть поле властивості, щоб ввести нове значення. Підтримує десяткові дроби та від'ємні числа.",
+  "radiologistics.node_ponder.number.compat": "Add, Subtract, Multiply, Divide, Equal, Greater Than, Less Than, RS Output, Link Output, Antenna Output",
+
+  "radiologistics.node_ponder.text.title": "Текст",
+  "radiologistics.node_ponder.text.desc": "Константа текстового рядка. Натисніть поле властивості, щоб відредагувати текст. Корисно для фіксованих мідок, ідентифікаторів звуків або назв каналів антени.",
+  "radiologistics.node_ponder.text.compat": "Text Viewer, Text Join, Text Split, Display Link, Antenna Output, Text Speak",
+
+  "radiologistics.node_ponder.comment.title": "Коментар",
+  "radiologistics.node_ponder.comment.desc": "Текстова анотація на полотні. Не впливає на логіку. Клацніть, щоб редагувати. Використовуйте для документування алгоритму.",
+  "radiologistics.node_ponder.comment.compat": "—",
+
+  "radiologistics.node_ponder.if.title": "If (Якщо)",
+  "radiologistics.node_ponder.if.desc": "Пропускає значення входу B на вихід лише тоді, коли умова A є TRUE. Якщо умова FALSE — вихід пригнічується (сигнал не проходить).",
+  "radiologistics.node_ponder.if.compat": "Bool, Signal, Or, Equal, Not Equal, Greater Than, Less Than",
+
+  "radiologistics.node_ponder.or.title": "Or (Або)",
+  "radiologistics.node_ponder.or.desc": "Логічне АБО двох булевих входів. Повертає TRUE, якщо хоча б один із входів TRUE. Обидва входи мають бути булевого типу.",
+  "radiologistics.node_ponder.or.compat": "Bool, Signal, If, Set Variable, Bool Viewer",
+
+  "radiologistics.node_ponder.equal.title": "Equal (Рівно)",
+  "radiologistics.node_ponder.equal.desc": "Порівнює два значення на рівність. Повертає TRUE, якщо обидва входи однакові. Працює з числами, булевими та текстом.",
+  "radiologistics.node_ponder.equal.compat": "If, Bool Viewer, Or, Set Variable",
+
+  "radiologistics.node_ponder.not_equal.title": "Not Equal (Не рівно)",
+  "radiologistics.node_ponder.not_equal.desc": "Повертає TRUE, якщо два значення НЕ рівні. Протилежне до блоку Equal.",
+  "radiologistics.node_ponder.not_equal.compat": "If, Bool Viewer, Or, Set Variable",
+
+  "radiologistics.node_ponder.greater_than.title": "Greater Than (Більше)",
+  "radiologistics.node_ponder.greater_than.desc": "Повертає TRUE, якщо вхід A суворо більший за вхід B. Обидва входи мають бути числовими.",
+  "radiologistics.node_ponder.greater_than.compat": "If, Bool Viewer, Or, Set Variable",
+
+  "radiologistics.node_ponder.less_than.title": "Less Than (Менше)",
+  "radiologistics.node_ponder.less_than.desc": "Повертає TRUE, якщо вхід A суворо менший за вхід B. Обидва входи мають бути числовими.",
+  "radiologistics.node_ponder.less_than.compat": "If, Bool Viewer, Or, Set Variable",
+
+  "radiologistics.node_ponder.add.title": "Add (Додавання)",
+  "radiologistics.node_ponder.add.desc": "Додає два числових входи (A + B). Результат виводиться як число.",
+  "radiologistics.node_ponder.add.compat": "Number, Subtract, Multiply, Divide, Equal, Greater Than, Less Than, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.subtract.title": "Subtract (Віднімання)",
+  "radiologistics.node_ponder.subtract.desc": "Віднімає B від A (A - B). Обидва входи мають бути числовими.",
+  "radiologistics.node_ponder.subtract.compat": "Number, Add, Multiply, Divide, Equal, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.multiply.title": "Multiply (Множення)",
+  "radiologistics.node_ponder.multiply.desc": "Множить два числових входи (A × B).",
+  "radiologistics.node_ponder.multiply.compat": "Number, Add, Divide, Floor, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.divide.title": "Divide (Ділення)",
+  "radiologistics.node_ponder.divide.desc": "Ділить A на B (A ÷ B). Ділення на нуль повертає 0.",
+  "radiologistics.node_ponder.divide.compat": "Number, Add, Multiply, Floor, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.floor.title": "Floor (Нижнє округлення)",
+  "radiologistics.node_ponder.floor.desc": "Округлює число вниз до найближчого цілого (наприклад, 3.9 → 3, -1.2 → -2).",
+  "radiologistics.node_ponder.floor.compat": "Number, Divide, Sqrt, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.sqrt.title": "Sqrt (Корінь)",
+  "radiologistics.node_ponder.sqrt.desc": "Обчислює квадратний корінь числа. Вхід має бути невід'ємним; від'ємні входи повертають 0.",
+  "radiologistics.node_ponder.sqrt.compat": "Number, Multiply, Atan2, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.square.title": "Square (Квадрат)",
+  "radiologistics.node_ponder.square.desc": "Зводить вхід у ступінь 2 (x²). Еквівалентно множенню числа на себе.",
+  "radiologistics.node_ponder.square.compat": "Number, Add, Sqrt, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.atan2.title": "Atan2",
+  "radiologistics.node_ponder.atan2.desc": "Обчислює кут (у градусах) між позитивною віссю X і точкою (A, B). Корисно для розрахунку напрямку руху.",
+  "radiologistics.node_ponder.atan2.compat": "Number, Gyroscope, Gyro Position, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.invert.title": "Invert (Інвертування)",
+  "radiologistics.node_ponder.invert.desc": "Змінює знак числа на протилежний (-x). Наприклад, 5 стає -5, а -3 стає 3.",
+  "radiologistics.node_ponder.invert.compat": "Number, Add, Subtract, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.abs.title": "Abs (Модуль)",
+  "radiologistics.node_ponder.abs.desc": "Повертає абсолютне значення числа (завжди невід'ємне). Наприклад, -7 стає 7.",
+  "radiologistics.node_ponder.abs.compat": "Number, Add, Subtract, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.sin.title": "Sin (Синус)",
+  "radiologistics.node_ponder.sin.desc": "Обчислює синус кута, заданого в градусах. Повертає значення від -1 до 1.",
+  "radiologistics.node_ponder.sin.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.cos.title": "Cos (Косинус)",
+  "radiologistics.node_ponder.cos.desc": "Обчислює косинус кута, заданого в градусах. Повертає значення від -1 до 1.",
+  "radiologistics.node_ponder.cos.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.tan.title": "Tan (Тангенс)",
+  "radiologistics.node_ponder.tan.desc": "Обчислює тангенс кута, заданого в градусах.",
+  "radiologistics.node_ponder.tan.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.ctg.title": "Ctg (Котангенс)",
+  "radiologistics.node_ponder.ctg.desc": "Обчислює котангенс кута, заданого в градусах (1 ÷ tg).",
+  "radiologistics.node_ponder.ctg.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
+
+  "radiologistics.node_ponder.redstone_output.title": "RS Output (Редстоун-вихід)",
+  "radiologistics.node_ponder.redstone_output.desc": "Видає редстоун-сигнал із вказаної грані блоку Головного комп'ютера. Сила сигналу пропорційна числовому входу (0–15). Клацніть, щоб переключити грань виходу.",
+  "radiologistics.node_ponder.redstone_output.compat": "Number, Add, Subtract, Multiply, Divide, If",
+
+  "radiologistics.node_ponder.display_link.title": "Display Link",
+  "radiologistics.node_ponder.display_link.desc": "Надсилає текст до підключеного блоку Create Display Link. Текстове значення передається щоразу при оцінці графа.",
+  "radiologistics.node_ponder.display_link.compat": "Text, Text Join, Text Speak, Number Viewer",
+
+  "radiologistics.node_ponder.link_input.title": "Link Input (Вхід лінку)",
+  "radiologistics.node_ponder.link_input.desc": "Зчитує числове значення з каналу Redstone Link. Налаштуйте дві частоти предметів за допомогою хотбару. Вимагає підключеного модуля Redstone Link.",
+  "radiologistics.node_ponder.link_input.compat": "Number Viewer, Add, Subtract, Equal, Greater Than, Less Than",
+
+  "radiologistics.node_ponder.link_output.title": "Link Output (Вихід лінку)",
+  "radiologistics.node_ponder.link_output.desc": "Записує числове значення до каналу Redstone Link. Налаштуйте дві частоти предметів за допомогою хотбару. Вимагає підключеного модуля Redstone Link.",
+  "radiologistics.node_ponder.link_output.compat": "Number, Add, Subtract, If",
+
+  "radiologistics.node_ponder.gyroscope.title": "Gyroscope (Гіроскоп)",
+  "radiologistics.node_ponder.gyroscope.desc": "Зчитує поточні кути Pitch і Yaw обертання конструкції з підключеного модуля Гіроскопічного датчика. Виводить два числових значення у градусах.",
+  "radiologistics.node_ponder.gyroscope.compat": "Sin, Cos, Tan, Atan2, Number Viewer, RS Output",
+
+  "radiologistics.node_ponder.gyroscope_position.title": "Gyro Position (Позиція гіроскопа)",
+  "radiologistics.node_ponder.gyroscope_position.desc": "Зчитує абсолютні світові координати X, Y, Z конструкції з Гіроскопічного датчика. Виводить три числових значення.",
+  "radiologistics.node_ponder.gyroscope_position.compat": "Subtract, Atan2, Number Viewer, RS Output",
+
+  "radiologistics.node_ponder.antenna_output.title": "Antenna Output (Надсилання сигналу)",
+  "radiologistics.node_ponder.antenna_output.desc": "Транслює повідомлення на радіоканалі, коли спрацьовує тригер події. Приймає номер каналу і будь-які дані корисного навантаження. Вимагає модуля Антени.",
+  "radiologistics.node_ponder.antenna_output.compat": "Bool (подія), Number (канал), Text / Number / Bool (дані)",
+
+  "radiologistics.node_ponder.active_target.title": "Active Target (Активна ціль)",
+  "radiologistics.node_ponder.active_target.desc": "Зчитує інформацію про поточну ціль з мережевого контролера (Create Radars). Виводить ім'я цілі, відстань, кут нахилу, курс та координати.",
+  "radiologistics.node_ponder.active_target.compat": "Number Viewer, Text Viewer, Subtract, Atan2, RS Output",
+
+  "radiologistics.node_ponder.jammer.title": "Jammer (Глушилка)",
+  "radiologistics.node_ponder.jammer.desc": "Активує модуль Глушилки для блокування радіозв'язку в заданому діапазоні каналів. Лише один блок Jammer дозволений на комп'ютер. Вимагає модуля Глушилки.",
+  "radiologistics.node_ponder.jammer.compat": "Bool (подія), Number (діапазон каналів)",
+
+  "radiologistics.node_ponder.variable.title": "Get Variable (Отримати змінну)",
+  "radiologistics.node_ponder.variable.desc": "Зчитує поточне значення іменованої змінної з пам'яті. Змінна має бути визначена в панелі VARS. Вимагає модуля Memory.",
+  "radiologistics.node_ponder.variable.compat": "If, Equal, Add, Bool Viewer, Number Viewer, Text Viewer",
+
+  "radiologistics.node_ponder.set_variable.title": "Set Variable (Встановити змінну)",
+  "radiologistics.node_ponder.set_variable.desc": "Записує значення до іменованої змінної у пам'яті, коли спрацьовує тригер події. Вхід події (Bool) контролює момент запису. Вимагає модуля Memory.",
+  "radiologistics.node_ponder.set_variable.compat": "Bool (подія), Any (значення) → Get Variable",
+
+  "radiologistics.node_ponder.bool_viewer.title": "Bool Viewer (Перегляд булевого)",
+  "radiologistics.node_ponder.bool_viewer.desc": "Відображає поточне булеве значення в GUI редактора у реальному часі. Показує ACTIVE (зелений) або INACTIVE (червоний). Не впливає на логіку.",
+  "radiologistics.node_ponder.bool_viewer.compat": "Bool, Signal, If, Or, Equal, Not Equal",
+
+  "radiologistics.node_ponder.number_viewer.title": "Number Viewer (Перегляд числа)",
+  "radiologistics.node_ponder.number_viewer.desc": "Відображає поточне числове значення в GUI редактора у реальному часі янтарним кольором. Не впливає на логіку.",
+  "radiologistics.node_ponder.number_viewer.compat": "Number, Add, Subtract, Multiply, Divide, Gyroscope, Link Input",
+
+  "radiologistics.node_ponder.text_viewer.title": "Text Viewer (Перегляд тексту)",
+  "radiologistics.node_ponder.text_viewer.desc": "Відображає поточне текстове значення в GUI редактора у реальному часі. Не впливає на логіку.",
+  "radiologistics.node_ponder.text_viewer.compat": "Text, Text Join, Text Split, Antenna Input",
+
+  "radiologistics.node_ponder.text_split.title": "Text Split (Розбиття тексту)",
+  "radiologistics.node_ponder.text_split.desc": "Розбиває рядок тексту за роздільником і повертає N-у частину. Вхід: рядок і номер частини. Корисно для розбору радіоповідомлень.",
+  "radiologistics.node_ponder.text_split.compat": "Text, Number → Text Viewer, Text Join, Display Link",
+
+  "radiologistics.node_ponder.text_join.title": "Text Join (Об'єднання тексту)",
+  "radiologistics.node_ponder.text_join.desc": "Об'єднує два текстових рядки в один. Другий рядок додається відразу після першого.",
+  "radiologistics.node_ponder.text_join.compat": "Text, Text Split → Text Viewer, Display Link, Antenna Output",
+
+  "radiologistics.node_ponder.text_speak.title": "Text Stream (Текстовий потік)",
+  "radiologistics.node_ponder.text_speak.desc": "Упаковує текст у TTS-аудіопотік, який може споживати вузол Audio Play. Підключіть до входу stream вузла Audio Play.",
+  "radiologistics.node_ponder.text_speak.compat": "Text (текст), Number (громкість, тон) → Audio Play (stream)",
+
+  "radiologistics.node_ponder.sound_play.title": "Link Stream (Потік за посиланням)",
+  "radiologistics.node_ponder.sound_play.desc": "Упаковує URL та параметри відтворення в аудіопотік, який може споживати вузол Audio Play. Підтримує WAV, MP3 і YouTube.",
+  "radiologistics.node_ponder.sound_play.compat": "Text (URL), Number (громкість, тон) → Audio Play (stream)",
+
+  "radiologistics.node_ponder.random.title": "Random (Випадкове число)",
+  "radiologistics.node_ponder.random.desc": "Генерує випадкове число у вказаному діапазоні min та max. Якщо обидва входи є цілими числами, виводить ціле число.",
+  "radiologistics.node_ponder.random.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
+
+  "radiologistics.node_ponder.degree_vector.title": "Deg Vector (Кутовий вектор)",
+  "radiologistics.node_ponder.degree_vector.desc": "Обчислює найкоротшу різницю в градусах між кутом A та кутом B з урахуванням переходу через -180 та 180 градусів.",
+  "radiologistics.node_ponder.degree_vector.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
+
+  "item.radiologistics.wired_inertia_fuze.tooltip.chance": "Шанс детонації",
+  "item.radiologistics.wired_inertia_fuze.tooltip.chance.value": "При зіткненні цей детонатор має шанс _%s%%_ здетонувати.",
+  "item.radiologistics.wired_inertia_fuze.tooltip.durability": "Проникаюча міцність",
+  "item.radiologistics.wired_inertia_fuze.tooltip.durability.value": "Цей детонатор може пройти крізь _%s_ блоків перед руйнуванням.",
+
+  "item.radiologistics.incomplete_pilot_helmet": "Недобудований шолом пілота",
+  "item.radiologistics.pilot_helmet": "Шолом пілота",
+  "item.radiologistics.wire": "Провід",
+  "block.radiologistics.cassette_reader": "Зчитувач касет",
+  "block.radiologistics.transparent_screen": "Прозорий екран",
+  "tooltip.radiologistics.pilot_helmet": "Захищає голову та взаємодіє з комп'ютером.\n- Клацніть правою кнопкою миші по Головному комп'ютеру із цим шоломом у руці, щоб зв'язати їх.\n- Передає позицію та кут огляду гравця до комп'ютера, коли вдягнений.",
+  "tooltip.radiologistics.wire": "Використовується для прямого підключення інформаційних табло до Головного комп'ютера.\n- Натисніть ПКМ на Головному комп'ютері, щоб зв'язати провід, а потім натисніть ПКМ на Табло, щоб підключити його як вузол мережі.",
+  "tooltip.radiologistics.cassette_reader": "Зчитує відеосигнал із касети Vista для виведення на екрани та в HUD.\n§6Додає вузли:\n§e- Cassette Reader: §7Зчитує дані касети.",
+  "tooltip.radiologistics.transparent_screen": "Відображає високотехнологічні HUD-елементи та телеметрію.\n§6Додає вузли:\n§e- Screen: §7Відображає візуальні елементи HUD.",
+  "tooltip.radiologistics.helmet_linked": "Шолом пілота зв'язано з комп'ютером у %s",
+  "tooltip.radiologistics.wire_linked": "Провід зв'язано з комп'ютером у %s",
+  "tooltip.radiologistics.wire_no_computer": "Цей провід не зв'язано з жодним комп'ютером! Спершу клацніть на Головний комп'ютер.",
+  "tooltip.radiologistics.wire_computer_lost": "Не вдалося знайти комп'ютер, з яким було зв'язано цей провід.",
+  "tooltip.radiologistics.wire_already_connected": "Це табло вже зареєстровано в мережі комп'ютера.",
+  "tooltip.radiologistics.wire_connected": "Підключено Табло в %s до мережі.",
+  "gui.radiologistics.incompatible_ports": "Несумісні типи портів!",
+  "radiologistics.node_ponder.shape.title": "Форма",
+  "radiologistics.node_ponder.shape.desc": "Константний тип форми (прямокутник, коло, лінія, текст, точка). Натисніть кнопку перемикання для циклічної зміни форми.",
+  "radiologistics.node_ponder.shape.compat": "Gizmos 2D, Gizmos 3D",
+  "radiologistics.node_ponder.color_rgb.title": "Колір (RGB)",
+  "radiologistics.node_ponder.color_rgb.desc": "Об'єднує числові входи R, G, B (0-255) в одне значення кольору.",
+  "radiologistics.node_ponder.color_rgb.compat": "Gizmos 2D, Gizmos 3D",
+  "message.radiologistics.cassette_inserted": "Касету вставлено в комп'ютер.",
+  "message.radiologistics.cassette_extracted": "Касету вилучено з комп'ютера.",
+
+  "radiologistics.node_ponder.cannon_rot.title": "Cannon Rot (Оберт гармати)",
+  "radiologistics.node_ponder.cannon_rot.desc": "Отримує поточні кути тангажу (Pitch) та рискання (Yaw) підключеної гарматної установки. Потребує підключеної гарматної установки.",
+  "radiologistics.node_ponder.cannon_rot.compat": "Number Viewer, Subtract, Atan2",
+
+  "radiologistics.ponder.main_computer.text_5": "Підключіть інформаційне табло, щоб виводити динамічний текст у залізничному стилі.",
+  "radiologistics.ponder.main_computer.text_6": "Або підключіть гармату з Create Big Cannons для автоматичного наведення та пострілу.",
+  "radiologistics.ponder.main_computer.text_7": "Наостанок, зв'яжіть камеру Vista, щоб отримувати відеопотік та керувати поворотом її об'єктива!",
+
+  "radiologistics.ponder.redstone_link_module.text_5": "Підключіть інформаційне табло, щоб виводити динамічний текст у залізничному стилі.",
+  "radiologistics.ponder.redstone_link_module.text_6": "Або підключіть гармату з Create Big Cannons для автоматичного наведення та пострілу.",
+  "radiologistics.ponder.redstone_link_module.text_7": "Наостанок, зв'яжіть камеру Vista, щоб отримувати відеопотік та керувати поворотом її об'єктива!",
+
+  "radiologistics.ponder.memory_module.text_5": "Підключіть інформаційне табло, щоб виводити динамічний текст у залізничному стилі.",
+  "radiologistics.ponder.memory_module.text_6": "Або підключіть гармату з Create Big Cannons для автоматичного наведення та пострілу.",
+  "radiologistics.ponder.memory_module.text_7": "Наостанок, зв'яжіть камеру Vista, щоб отримувати відеопотік та керувати поворотом її об'єктива!",
+
+  "radiologistics.ponder.gyroscope_sensor.text_5": "Підключіть інформаційне табло, щоб виводити динамічний текст у залізничному стилі.",
+  "radiologistics.ponder.gyroscope_sensor.text_6": "Або підключіть гармату з Create Big Cannons для автоматичного наведення та пострілу.",
+  "radiologistics.ponder.gyroscope_sensor.text_7": "Наостанок, зв'яжіть камеру Vista, щоб отримувати відеопотік та керувати поворотом її об'єктива!",
+
+  "radiologistics.ponder.antenna.text_5": "Підключіть інформаційне табло, щоб виводити динамічний текст у залізничному стилі.",
+  "radiologistics.ponder.antenna.text_6": "Або підключіть гармату з Create Big Cannons для автоматичного наведення та пострілу.",
+  "radiologistics.ponder.antenna.text_7": "Наостанок, зв'яжіть камеру Vista, щоб отримувати відеопотік та керувати поворотом її об'єктива!",
+
+  "radiologistics.ponder.jammer.text_5": "Підключіть інформаційне табло, щоб виводити динамічний текст у залізничному стилі.",
+  "radiologistics.ponder.jammer.text_6": "Або підключіть гармату з Create Big Cannons для автоматичного наведення та пострілу.",
+  "radiologistics.ponder.jammer.text_7": "Наостанок, зв'яжіть камеру Vista, щоб отримувати відеопотік та керувати поворотом її об'єктива!",
+
+  "radiologistics.ponder.audio_module.text_5": "Підключіть інформаційне табло, щоб виводити динамічний текст у залізничному стилі.",
+  "radiologistics.ponder.audio_module.text_6": "Або підключіть гармату з Create Big Cannons для автоматичного наведення та пострілу.",
+  "radiologistics.ponder.audio_module.text_7": "Наостанок, зв'яжіть камеру Vista, щоб отримувати відеопотік та керувати поворотом її об'єктива!",
+
+  "radiologistics.ponder.transparent_screen.header": "Використання прозорого екрана",
+  "radiologistics.ponder.transparent_screen.text_1": "Прозорий екран відображає 2D/3D графіку, текст та відео з камер.",
+  "radiologistics.ponder.transparent_screen.text_2": "Використовуйте дріт, щоб підключити екран напряму до Головного комп'ютера.",
+  "radiologistics.ponder.transparent_screen.text_3": "Після з'єднання, комп'ютер виводитиме графіку з нод безпосередньо на полотно екрана!",
+
+  "radiologistics.ponder.pilot_helmet.header": "HUD-інтерфейс шолома пілота",
+  "radiologistics.ponder.pilot_helmet.text_1": "Шолом пілота відображає графіку HUD-інтерфейсу, телеметрію та відеопотоки на вашому екрані.",
+  "radiologistics.ponder.pilot_helmet.text_2": "Клацніть правою кнопкою миші по Головному комп'ютеру з шоломом у руці, щоб зв'язати їх.",
+  "radiologistics.ponder.pilot_helmet.text_3": "Одягніть зв'язаний шолом у слот для голови. Комп'ютер передаватиме форми, лінії, текст та відео з камер прямо на ваш екран!",
+
+  "radiologistics.ponder.pilothelmet.header": "HUD-інтерфейс шолома пілота",
+  "radiologistics.ponder.pilothelmet.text_1": "Шолом пілота відображає графіку HUD-інтерфейсу, телеметрію та відеопотоки на вашому екрані.",
+  "radiologistics.ponder.pilothelmet.text_2": "Клацніть правою кнопкою миші по Головному комп'ютеру з шоломом у руці, щоб зв'язати їх.",
+  "radiologistics.ponder.pilothelmet.text_3": "Одягніть зв'язаний шолом у слот для голови. Комп'ютер передаватиме форми, лінії, текст та відео з камер прямо на ваш екран!",
+  "radiologistics.ponder.pilothelmet.text_4": "Одягніть зв'язаний шолом у слот для голови. Комп'ютер передаватиме форми, лінії, текст та відео з камер прямо на ваш екран!",
+  "radiologistics.ponder.pilothelmet.text_5": "Одягніть зв'язаний шолом у слот для голови. Комп'ютер передаватиме форми, лінії, текст та відео з камер прямо на ваш екран!"
 }

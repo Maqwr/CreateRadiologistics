@@ -1,0 +1,66 @@
+{
+  "type": "create:sequenced_assembly",
+  "ingredient": {
+    "item": "create:netherite_diving_helmet"
+  },
+  "transitional_item": {
+    "id": "radiologistics:incomplete_pilot_helmet"
+  },
+  "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "radiologistics:incomplete_pilot_helmet"
+        },
+        {
+          "item": "minecraft:tinted_glass"
+        }
+      ],
+      "results": [
+        {
+          "id": "radiologistics:incomplete_pilot_helmet"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "radiologistics:incomplete_pilot_helmet"
+        },
+        {
+          "item": "create:precision_mechanism"
+        }
+      ],
+      "results": [
+        {
+          "id": "radiologistics:incomplete_pilot_helmet"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "radiologistics:incomplete_pilot_helmet"
+        },
+        {
+          "item": "radiologistics:wire"
+        }
+      ],
+      "results": [
+        {
+          "id": "radiologistics:incomplete_pilot_helmet"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "id": "radiologistics:pilot_helmet",
+      "chance": 1.0
+    }
+  ],
+  "loops": 3
+}

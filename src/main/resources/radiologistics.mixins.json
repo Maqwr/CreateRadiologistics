@@ -2,11 +2,18 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.radiologistics.create.mixin",
+  "refmap": "radiologistics.refmap.json",
   "compatibilityLevel": "JAVA_21",
+
   "mixins": [
     "RedstoneLinkNetworkHandlerMixin"
   ],
-  "client": [],
+
+
+
+  "client": [
+    "ClientConfigsMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

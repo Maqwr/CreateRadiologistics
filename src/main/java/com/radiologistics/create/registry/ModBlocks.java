@@ -63,4 +63,10 @@ public class ModBlocks {
             .strength(3.0f)
             .requiresCorrectToolForDrops()
             .noOcclusion()));
+
+    public static final DeferredBlock<Block> TRANSPARENT_SCREEN = BLOCKS.register("transparent_screen",
+        () -> new com.radiologistics.create.block.ScreenBlock(BlockBehaviour.Properties.of()
+            .strength(3.0f)
+            .requiresCorrectToolForDrops()
+            .noOcclusion()));
 }

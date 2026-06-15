@@ -44,4 +44,8 @@ public class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.radiologistics.create.block.AudioModuleBlockEntity>> AUDIO_MODULE =
         BLOCK_ENTITY_TYPES.register("audio_module",
             () -> BlockEntityType.Builder.of(com.radiologistics.create.block.AudioModuleBlockEntity::new, ModBlocks.AUDIO_MODULE.get()).build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.radiologistics.create.block.ScreenBlockEntity>> TRANSPARENT_SCREEN =
+        BLOCK_ENTITY_TYPES.register("transparent_screen",
+            () -> BlockEntityType.Builder.of(com.radiologistics.create.block.ScreenBlockEntity::new, ModBlocks.TRANSPARENT_SCREEN.get()).build(null));
 }

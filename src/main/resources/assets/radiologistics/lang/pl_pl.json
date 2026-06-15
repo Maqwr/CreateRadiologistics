@@ -11,5 +11,48 @@
   "item.radiologistics.wired_inertia_fuze": "Przewodowy Zapalnik Bezwładnościowy",
   "itemGroup.radiologistics_tab": "Create: Radiologistics",
   "tooltip.radiologistics.hold_shift": "Przytrzymaj Shift dla szczegółów",
-  "tooltip.radiologistics.wired_inertia_fuze": "Działa jako zapalnik uderzeniowy.\n- Może być umieszczony w pociskach dużych armat.\n- Gdy blok pocisku zostanie zasilony sygnałem redstone, wystrzeli pocisk w kierunku, w którym jest zwrócony, nie wybuchając na miejscu."
+  "tooltip.radiologistics.wired_inertia_fuze": "Działa jako zapalnik uderzeniowy.\n- Może być umieszczony w pociskach dużych armat.\n- Gdy blok pocisku zostanie zasilony sygnałem redstone, wystrzeli pocisk w kierunku, w którym jest zwrócony, nie wybuchając na miejscu.",
+
+  "item.radiologistics.wired_inertia_fuze.tooltip.chance": "Szansa na wybuch przy uderzeniu",
+  "item.radiologistics.wired_inertia_fuze.tooltip.chance.value": "Przy uderzeniu zapalnik ma _%s%%_ szansy na wybuch.",
+  "item.radiologistics.wired_inertia_fuze.tooltip.durability": "Wytrzymałość na przebicie",
+  "item.radiologistics.wired_inertia_fuze.tooltip.durability.value": "Ten zapalnik może przebić się przez _%s_ bloków przed zniszczeniem.",
+
+  "item.radiologistics.incomplete_pilot_helmet": "Niekompletny Hełm Pilota",
+  "item.radiologistics.pilot_helmet": "Hełm Pilota",
+  "item.radiologistics.wire": "Przewód",
+  "block.radiologistics.camera_module": "Moduł Kamery",
+  "block.radiologistics.transparent_screen": "Przezroczysty Ekran",
+  "tooltip.radiologistics.pilot_helmet": "Chroni głowę i komunikuje się z komputerami.\n- Kliknij PPM na Komputer Główny z hełmem w ręce, aby je połączyć.\n- Udostępnia pozycję i rotację gracza jako węzły wejściowe po założeniu.",
+  "tooltip.radiologistics.wire": "Służy do łączenia tablic informacyjnych bezpośrednio z Komputerem Głównym.\n- Kliknij PPM na Komputer Główny, aby przypisać przewód, a następnie kliknij PPM na Tablicę informacyjną, aby połączyć ją jako węzeł sieci.",
+  "tooltip.radiologistics.camera_module": "Przechwytuje i wysyła obrazy dla ekranów.\n§6Dodaje węzły:\n§e- Camera: §7Przechwytuje dane pola widzenia.",
+  "tooltip.radiologistics.transparent_screen": "Renderuje zaawansowane nakładki HUD i telemetrię.\n§6Dodaje węzły:\n§e- Screen: §7Wyświetla elementy wizualne HUD.",
+  "tooltip.radiologistics.helmet_linked": "Połączono hełm pilota z komputerem w %s",
+  "tooltip.radiologistics.wire_linked": "Połączono przewód z komputerem w %s",
+  "tooltip.radiologistics.wire_no_computer": "Ten przewód nie jest połączony z żadnym komputerem! Najpierw kliknij Komputer Główny.",
+  "tooltip.radiologistics.wire_computer_lost": "Nie można znaleźć komputera, z którym połączony był ten przewód.",
+  "tooltip.radiologistics.wire_already_connected": "Ta tablica jest już zarejestrowana w sieci komputera.",
+  "tooltip.radiologistics.wire_connected": "Połączono Tablicę informacyjną w %s z siecią.",
+  "gui.radiologistics.incompatible_ports": "Niezgodne typy portów!",
+  "radiologistics.node_ponder.shape.title": "Kształt",
+  "radiologistics.node_ponder.shape.desc": "Stała wartość kształtu (prostokąt, koło, linia, tekst, punkt). Kliknij przycisk przełączania, aby przełączać kształty.",
+  "radiologistics.node_ponder.shape.compat": "Gizmos 2D, Gizmos 3D",
+  "radiologistics.node_ponder.color_rgb.title": "Kolor (RGB)",
+  "radiologistics.node_ponder.color_rgb.desc": "Łączy wejścia liczbowe R, G, B (0-255) w jedną wartość koloru.",
+  "radiologistics.node_ponder.color_rgb.compat": "Gizmos 2D, Gizmos 3D",
+
+  "radiologistics.node_ponder.random.title": "Losowy",
+  "radiologistics.node_ponder.random.desc": "Generuje losową liczbę zmiennoprzecinkową między wejściami min i max.",
+  "radiologistics.node_ponder.random.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
+
+  "radiologistics.node_ponder.degree_vector.title": "Wektor kąta",
+  "radiologistics.node_ponder.degree_vector.desc": "Oblicza najkrótszą różnicę kątową między kątami A i B z uwzględnieniem zawijania przy -180 i 180 stopniach.",
+  "radiologistics.node_ponder.degree_vector.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
+
+  "message.radiologistics.cassette_inserted": "Włożono kasetę do komputera.",
+  "message.radiologistics.cassette_extracted": "Wyjęto kasetę z komputera.",
+
+  "radiologistics.node_ponder.cannon_rot.title": "Obrót armaty",
+  "radiologistics.node_ponder.cannon_rot.desc": "Odczytuje aktualne kąty podniesienia (Pitch) i obrotu (Yaw) podłączonej lawety armatniej. Wymaga podłączonej lawety armatniej.",
+  "radiologistics.node_ponder.cannon_rot.compat": "Number Viewer, Subtract, Atan2"
 }

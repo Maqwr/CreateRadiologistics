@@ -12,10 +12,16 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.*;
 
 public class MainComputerBlockEntity extends BlockEntity {
+    private net.minecraft.world.item.ItemStack cassette = net.minecraft.world.item.ItemStack.EMPTY;
+    private final List<Object> trackedTvMocks = new ArrayList<>();
     private final NodeGraph graph = new NodeGraph();
     private final Map<Direction, Integer> redstoneOutputs = new EnumMap<>(Direction.class);
     private final Set<String> registeredChannels = new HashSet<>();
@@ -29,6 +35,121 @@ public class MainComputerBlockEntity extends BlockEntity {
     private int jammedMaxChannel = 0;
     private final List<int[]> activeJammedRanges = new ArrayList<>();
     private String displayLinkText = "";
+    private long lastDisplayLinkUpdate = 0;
+    private BlockPos displayLinkPos = null;
+
+    private boolean lastJammerConnected = false;
+    private int lastJammersCount = 0;
+    private final List<int[]> lastJammedRanges = new ArrayList<>();
+    private String cameraGizmosJson = "[]";
+
+    public String getCameraGizmosJson() {
+        return cameraGizmosJson;
+    }
+
+    public void setCameraGizmosJson(String cameraGizmosJson) {
+        if (cameraGizmosJson == null) cameraGizmosJson = "[]";
+        if (!this.cameraGizmosJson.equals(cameraGizmosJson)) {
+            this.cameraGizmosJson = cameraGizmosJson;
+            setChanged();
+            if (level != null && !level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+    }
+
+    private final Set<Long> forcedChunks = new HashSet<>();
+    private ResourceKey<Level> forcedLevelKey = null;
+
+    /** Diagnostic helper — used by shutdown logging in Radiologistics.java */
+    public int getForcedChunksCount() { return forcedChunks.size(); }
+
+    public void releaseAllForcedChunks() {
+        if (forcedChunks.isEmpty() || forcedLevelKey == null) {
+            forcedChunks.clear();
+            forcedLevelKey = null;
+            return;
+        }
+        // During shutdown the ChunkHolders are already being deallocated;
+        // calling setChunkForced() at that point causes a NullPointerException
+        // in ChunkMap.acquireGeneration which crashes the save sequence.
+        // If the server is stopping or already stopped, just clear our bookkeeping.
+        net.minecraft.server.MinecraftServer mcServer = level != null ? level.getServer() : null;
+        if (com.radiologistics.create.Radiologistics.isServerStopping
+                || level == null || level.isClientSide()
+                || (mcServer != null && !mcServer.isRunning())) {
+            forcedChunks.clear();
+            forcedLevelKey = null;
+            return;
+        }
+        try {
+            net.minecraft.server.level.ServerLevel serverLevel = null;
+            if (level instanceof net.minecraft.server.level.ServerLevel sl) {
+                serverLevel = sl;
+            } else {
+                Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+                if (subLevelClass.isInstance(level)) {
+                    java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
+                    net.minecraft.world.level.Level parentLevel = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
+                    if (parentLevel instanceof net.minecraft.server.level.ServerLevel sl) {
+                        serverLevel = sl;
+                    }
+                }
+            }
+            if (serverLevel != null && serverLevel.getServer() != null && serverLevel.getServer().isRunning()) {
+                net.minecraft.server.level.ServerLevel targetLevel = serverLevel.getServer().getLevel(forcedLevelKey);
+                if (targetLevel != null) {
+                    com.radiologistics.create.Radiologistics.LOGGER.info("Releasing {} forced chunks in dimension {} for computer at {}", forcedChunks.size(), forcedLevelKey.location(), worldPosition);
+                    for (long chunkPosLong : forcedChunks) {
+                        int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
+                        int cz = net.minecraft.world.level.ChunkPos.getZ(chunkPosLong);
+                        targetLevel.setChunkForced(cx, cz, false);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        forcedChunks.clear();
+        forcedLevelKey = null;
+    }
+
+    private void updateForcedChunks(Set<Long> targets, net.minecraft.server.level.ServerLevel targetLevel) {
+        if (level == null || level.isClientSide()) return;
+        net.minecraft.server.MinecraftServer mcServer = level.getServer();
+        if (com.radiologistics.create.Radiologistics.isServerStopping 
+                || (mcServer != null && !mcServer.isRunning())) {
+            forcedChunks.clear();
+            forcedLevelKey = null;
+            return;
+        }
+        ResourceKey<Level> targetDim = targetLevel.dimension();
+        
+        if (forcedLevelKey != null && !forcedLevelKey.equals(targetDim)) {
+            releaseAllForcedChunks();
+        }
+        
+        forcedLevelKey = targetDim;
+        
+        for (long chunkPosLong : new ArrayList<>(forcedChunks)) {
+            if (!targets.contains(chunkPosLong)) {
+                int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
+                int cz = net.minecraft.world.level.ChunkPos.getZ(chunkPosLong);
+                targetLevel.setChunkForced(cx, cz, false);
+                forcedChunks.remove(chunkPosLong);
+            }
+        }
+        
+        for (long chunkPosLong : targets) {
+            if (!forcedChunks.contains(chunkPosLong)) {
+                int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
+                int cz = net.minecraft.world.level.ChunkPos.getZ(chunkPosLong);
+                targetLevel.setChunkForced(cx, cz, true);
+                forcedChunks.add(chunkPosLong);
+            }
+        }
+        setChanged();
+    }
 
     public String getDisplayLinkText() {
         return displayLinkText;
@@ -44,6 +165,40 @@ public class MainComputerBlockEntity extends BlockEntity {
                 evaluateGraph();
             }
         }
+    }
+
+    public void registerDisplayLinkUpdate(BlockPos dlPos) {
+        this.displayLinkPos = dlPos;
+        registerDisplayLinkUpdate();
+    }
+
+    public void registerDisplayLinkUpdate() {
+        if (this.level != null) {
+            long prev = this.lastDisplayLinkUpdate;
+            this.lastDisplayLinkUpdate = this.level.getGameTime();
+            if (this.level.getGameTime() - prev >= 40) {
+                setChanged();
+                if (!this.level.isClientSide()) {
+                    this.level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                }
+            }
+        }
+    }
+
+    public boolean isDisplayLinkConnected() {
+        if (level == null) return false;
+        if (level.getGameTime() - lastDisplayLinkUpdate < 100) {
+            return true;
+        }
+        if (displayLinkPos != null) {
+            BlockEntity be = resolveBlockEntity(level, displayLinkPos);
+            if (be instanceof com.simibubi.create.content.redstone.displayLink.DisplayLinkBlockEntity dl) {
+                if (worldPosition.equals(dl.getTargetPosition())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public List<int[]> getActiveJammedRanges() {
@@ -113,17 +268,37 @@ public class MainComputerBlockEntity extends BlockEntity {
         if (level != null && !level.isClientSide()) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateListeners(); // Update listeners when module is linked
+            if (type.equals("screen")) {
+                trackCassette();
+            }
             evaluateGraph();
         }
         return true;
     }
 
     public void unlinkModule(String type) {
-        if (linkedModules.remove(type) != null) {
+        BlockPos oldPos = linkedModules.remove(type);
+        if (oldPos != null) {
+            if (level != null && !level.isClientSide()) {
+                BlockEntity moduleBE = resolveBlockEntity(level, oldPos);
+                if (moduleBE instanceof BaseModuleBlockEntity module) {
+                    if (worldPosition.equals(module.getComputerPos())) {
+                        module.setComputerPos(null);
+                        if (module instanceof ScreenBlockEntity screen) {
+                            screen.setGizmosJson("[]");
+                        }
+                        module.setChanged();
+                        level.sendBlockUpdated(oldPos, moduleBE.getBlockState(), moduleBE.getBlockState(), 3);
+                    }
+                }
+            }
             setChanged();
             if (level != null && !level.isClientSide()) {
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
                 updateListeners(); // Update listeners when module is unlinked
+                if (type.equals("screen")) {
+                    trackCassette();
+                }
                 evaluateGraph();
             }
         }
@@ -155,6 +330,9 @@ public class MainComputerBlockEntity extends BlockEntity {
         if (type.equals("jammer")) {
             return !getJammers().isEmpty();
         }
+        if (type.equals("cassette_reader")) {
+            return !getCassette().isEmpty();
+        }
 
         BlockPos pos = linkedModules.get(type);
         if (pos == null) return false;
@@ -162,6 +340,12 @@ public class MainComputerBlockEntity extends BlockEntity {
         BlockEntity be = resolveBlockEntity(level, pos);
         if (type.equals("network_controller")) {
             if (be != null && be.getClass().getName().equals("com.happysg.radar.block.controller.networkcontroller.NetworkFiltererBlockEntity")) {
+                return true;
+            }
+            return false;
+        }
+        if (type.equals("cannon_mount")) {
+            if (be != null && be.getClass().getName().equals("rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlockEntity")) {
                 return true;
             }
             return false;
@@ -193,43 +377,214 @@ public class MainComputerBlockEntity extends BlockEntity {
         return list;
     }
 
+    private static boolean reflectionChecked = false;
+    private static Class<?> subLevelClass = null;
+    private static java.lang.reflect.Method getLevelMethod = null;
+    private static Class<?> companionClass = null;
+    private static Object companionInstance = null;
+    private static java.lang.reflect.Method getContainingMethod = null;
+
+    private static void initReflection() {
+        if (reflectionChecked) return;
+        reflectionChecked = true;
+        try {
+            subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+            getLevelMethod = subLevelClass.getMethod("getLevel");
+        } catch (Throwable ignored) {}
+        try {
+            companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
+            companionInstance = companionClass.getField("INSTANCE").get(null);
+            getContainingMethod = companionClass.getMethod("getContaining", net.minecraft.world.level.Level.class, net.minecraft.core.Vec3i.class);
+        } catch (Throwable ignored) {}
+    }
+
     public static BlockEntity resolveBlockEntity(net.minecraft.world.level.Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be != null) return be;
-        try {
-            Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-            if (subLevelClass.isInstance(level)) {
-                java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
+        
+        // 1. Check local level first (if chunk is loaded)
+        if (level.hasChunkAt(pos)) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be != null) return be;
+        }
+        
+        // 2. If server is stopping, bypass reflection/sublevel lookups
+        if (com.radiologistics.create.Radiologistics.isServerStopping) {
+            return null;
+        }
+
+        // 3. Initialize reflection
+        initReflection();
+
+        // 4. Try sublevel parent check
+        if (subLevelClass != null && getLevelMethod != null && subLevelClass.isInstance(level)) {
+            try {
                 net.minecraft.world.level.Level parentLevel = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
-                if (parentLevel != null) {
-                    be = parentLevel.getBlockEntity(pos);
+                if (parentLevel != null && parentLevel.hasChunkAt(pos)) {
+                    BlockEntity be = parentLevel.getBlockEntity(pos);
                     if (be != null) return be;
                 }
-            }
-        } catch (Exception ignored) {}
-        try {
-            Class<?> companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
-            Object companion = companionClass.getField("INSTANCE").get(null);
-            java.lang.reflect.Method getContainingMethod = companionClass.getMethod("getContaining", net.minecraft.world.level.Level.class, net.minecraft.core.Vec3i.class);
-            Object subLevelAccess = getContainingMethod.invoke(companion, level, pos);
-            if (subLevelAccess instanceof net.minecraft.world.level.Level subLevel) {
-                be = subLevel.getBlockEntity(pos);
-                if (be != null) return be;
-            }
-        } catch (Exception ignored) {}
+            } catch (Throwable ignored) {}
+        }
+
+        // 5. Try SableCompanion containing check
+        if (companionInstance != null && getContainingMethod != null) {
+            try {
+                Object subLevelAccess = getContainingMethod.invoke(companionInstance, level, pos);
+                if (subLevelAccess instanceof net.minecraft.world.level.Level subLevel) {
+                    if (subLevel.hasChunkAt(pos)) {
+                        BlockEntity be = subLevel.getBlockEntity(pos);
+                        if (be != null) return be;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
         return null;
     }
 
 
+    public net.minecraft.world.item.ItemStack getCassette() {
+        return cassette;
+    }
+
+    public void setCassette(net.minecraft.world.item.ItemStack cassette) {
+        this.cassette = cassette == null ? net.minecraft.world.item.ItemStack.EMPTY : cassette;
+        setChanged();
+        if (level != null) {
+            if (!level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                trackCassette();
+                evaluateGraph();
+            }
+        }
+    }
+
+    public void trackCassette() {
+        if (level == null || level.isClientSide()) return;
+        for (Object mock : trackedTvMocks) {
+            com.radiologistics.create.compat.VistaIntegrationHelper.untrackTv(mock);
+        }
+        trackedTvMocks.clear();
+
+        if (!cassette.isEmpty()) {
+            // 1. Track at computer position
+            Object computerMock = com.radiologistics.create.compat.VistaIntegrationHelper.createMockTv(level, worldPosition, getBlockState(), cassette);
+            if (computerMock != null) {
+                com.radiologistics.create.compat.VistaIntegrationHelper.trackTv(computerMock);
+                trackedTvMocks.add(computerMock);
+            }
+
+            // 2. Track at screen position if connected
+            if (isModuleConnected("screen")) {
+                BlockPos screenPos = linkedModules.get("screen");
+                if (screenPos != null) {
+                    Object screenMock = com.radiologistics.create.compat.VistaIntegrationHelper.createMockTv(level, screenPos, getBlockState(), cassette);
+                    if (screenMock != null) {
+                        com.radiologistics.create.compat.VistaIntegrationHelper.trackTv(screenMock);
+                        trackedTvMocks.add(screenMock);
+                    }
+                }
+            }
+        }
+    }
+
+    public void untrackCassette() {
+        for (Object mock : trackedTvMocks) {
+            com.radiologistics.create.compat.VistaIntegrationHelper.untrackTv(mock);
+        }
+        trackedTvMocks.clear();
+    }
+
+    public BlockPos getDisplayLinkPos() {
+        return displayLinkPos;
+    }
+
     public java.util.Set<String> getConnectedModuleTypes() {
         java.util.Set<String> connected = new HashSet<>();
-        for (String type : new String[]{"redstone_link", "memory", "gyroscope", "antenna", "network_controller", "jammer", "audio"}) {
+        for (String type : new String[]{"redstone_link", "memory", "gyroscope", "antenna", "network_controller", "jammer", "audio", "screen", "cannon_mount"}) {
             if (isModuleConnected(type)) {
                 connected.add(type);
             }
         }
+        if (!getCassette().isEmpty()) {
+            connected.add("cassette_reader");
+        }
+        if (isDisplayLinkConnected()) {
+            connected.add("display_link");
+        }
+        for (String key : linkedModules.keySet()) {
+            if (key.startsWith("display_board_") || key.startsWith("jammer_")) {
+                connected.add(key);
+            }
+        }
+        boolean helmetLinked = false;
+        if (level != null) {
+            if (level.isClientSide()) {
+                net.minecraft.client.player.LocalPlayer lp = net.minecraft.client.Minecraft.getInstance().player;
+                if (lp != null) {
+                    net.minecraft.world.item.ItemStack head = lp.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD);
+                    if (head.getItem() instanceof com.radiologistics.create.item.PilotHelmetItem && isHelmetLinked(head, worldPosition)) {
+                        helmetLinked = true;
+                    }
+                }
+            } else {
+                net.minecraft.server.MinecraftServer server = level.getServer();
+                if (server != null) {
+                    for (net.minecraft.server.level.ServerPlayer p : server.getPlayerList().getPlayers()) {
+                        net.minecraft.world.item.ItemStack head = p.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD);
+                        if (head.getItem() instanceof com.radiologistics.create.item.PilotHelmetItem && isHelmetLinked(head, worldPosition)) {
+                            helmetLinked = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (helmetLinked) {
+            connected.add("helmet");
+        }
         return connected;
+    }
+
+    public Map<String, BlockPos> getLinkedModules() {
+        return linkedModules;
+    }
+
+    public void linkDisplayBoard(BlockPos boardPos) {
+        String key = "display_board_" + boardPos.getX() + "_" + boardPos.getY() + "_" + boardPos.getZ();
+        linkedModules.put(key, boardPos);
+        setChanged();
+        if (level != null && !level.isClientSide()) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            evaluateGraph();
+        }
+    }
+
+    public boolean isDisplayBoardLinked(BlockPos boardPos) {
+        String key = "display_board_" + boardPos.getX() + "_" + boardPos.getY() + "_" + boardPos.getZ();
+        return linkedModules.containsKey(key);
+    }
+
+    public void unlinkDisplayBoard(BlockPos boardPos) {
+        String key = "display_board_" + boardPos.getX() + "_" + boardPos.getY() + "_" + boardPos.getZ();
+        if (linkedModules.remove(key) != null) {
+            setChanged();
+            if (level != null && !level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                evaluateGraph();
+            }
+        }
+    }
+
+    private boolean isHelmetLinked(net.minecraft.world.item.ItemStack head, BlockPos computerPos) {
+        net.minecraft.world.item.component.CustomData customData = head.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+        if (customData != null) {
+            CompoundTag tag = customData.copyTag();
+            if (tag.contains("LinkedComputer")) {
+                return BlockPos.of(tag.getLong("LinkedComputer")).equals(computerPos);
+            }
+        }
+        return false;
     }
 
     public int getComputerAntennaHeight() {
@@ -274,6 +629,7 @@ public class MainComputerBlockEntity extends BlockEntity {
         if (level != null && !level.isClientSide()) {
             RadioNetworkManager.activeComputers.add(this);
             updateListeners();
+            trackCassette();
             evaluateGraph();
         }
     }
@@ -282,6 +638,77 @@ public class MainComputerBlockEntity extends BlockEntity {
     public void setRemoved() {
         super.setRemoved();
         RadioNetworkManager.activeComputers.remove(this);
+        if (level != null && !level.isClientSide()) {
+            untrackCassette();
+            releaseAllForcedChunks();
+            for (VirtualLinkable linkable : activeLinkables.values()) {
+                com.simibubi.create.Create.REDSTONE_LINK_NETWORK_HANDLER.removeFromNetwork(level, linkable);
+            }
+            activeLinkables.clear();
+            for (String channel : registeredChannels) {
+                RadioNetworkManager.unregisterListener(channel, level, worldPosition);
+            }
+            registeredChannels.clear();
+
+            // Disconnect all linked modules when computer is broken or removed
+            for (BlockPos modulePos : new ArrayList<>(linkedModules.values())) {
+                BlockEntity moduleBE = resolveBlockEntity(level, modulePos);
+                if (moduleBE instanceof BaseModuleBlockEntity module) {
+                    if (worldPosition.equals(module.getComputerPos())) {
+                        module.setComputerPos(null);
+                        if (module instanceof ScreenBlockEntity screen) {
+                            screen.setGizmosJson("[]");
+                        }
+                        module.setChanged();
+                        level.sendBlockUpdated(modulePos, moduleBE.getBlockState(), moduleBE.getBlockState(), 3);
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onChunkUnloaded() {
+        super.onChunkUnloaded();
+        RadioNetworkManager.activeComputers.remove(this);
+
+        net.minecraft.server.MinecraftServer mcServer = level != null ? level.getServer() : null;
+        boolean serverStopping = com.radiologistics.create.Radiologistics.isServerStopping
+                || (mcServer != null && !mcServer.isRunning());
+
+        if (serverStopping) {
+            // During shutdown ChunkHolders may already be null — just discard bookkeeping.
+            trackedTvMocks.clear();
+            forcedChunks.clear();
+            forcedLevelKey = null;
+            return;
+        }
+
+        untrackCassette();
+
+        // Release forced chunks synchronously on the server tick thread (we are already on it).
+        if (level != null && !level.isClientSide() && !forcedChunks.isEmpty() && forcedLevelKey != null) {
+            try {
+                net.minecraft.server.level.ServerLevel serverLevel = null;
+                if (level instanceof net.minecraft.server.level.ServerLevel sl) {
+                    serverLevel = sl;
+                }
+                if (serverLevel != null) {
+                    net.minecraft.server.level.ServerLevel targetLevel = serverLevel.getServer().getLevel(forcedLevelKey);
+                    if (targetLevel != null) {
+                        for (long chunkPosLong : new java.util.ArrayList<>(forcedChunks)) {
+                            int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
+                            int cz = net.minecraft.world.level.ChunkPos.getZ(chunkPosLong);
+                            try { targetLevel.setChunkForced(cx, cz, false); } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        forcedChunks.clear();
+        forcedLevelKey = null;
+
         if (level != null && !level.isClientSide()) {
             for (VirtualLinkable linkable : activeLinkables.values()) {
                 com.simibubi.create.Create.REDSTONE_LINK_NETWORK_HANDLER.removeFromNetwork(level, linkable);
@@ -292,12 +719,6 @@ public class MainComputerBlockEntity extends BlockEntity {
             }
             registeredChannels.clear();
         }
-    }
-
-    @Override
-    public void onChunkUnloaded() {
-        super.onChunkUnloaded();
-        RadioNetworkManager.activeComputers.remove(this);
     }
 
     public void onSignalReceived(String channel, String value) {
@@ -463,6 +884,9 @@ public class MainComputerBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         tag.put("graph", graph.toNBT());
+        if (!cassette.isEmpty()) {
+            tag.put("cassette", cassette.save(registries));
+        }
         
         CompoundTag outputsTag = new CompoundTag();
         for (Direction dir : Direction.values()) {
@@ -487,6 +911,21 @@ public class MainComputerBlockEntity extends BlockEntity {
         tag.putString("cachedTargetName", cachedTargetName);
         tag.putInt("jammedMaxChannel", jammedMaxChannel);
         tag.putString("displayLinkText", displayLinkText);
+        tag.putLong("lastDisplayLinkUpdate", lastDisplayLinkUpdate);
+        if (displayLinkPos != null) {
+            tag.putInt("displayLinkDx", displayLinkPos.getX() - worldPosition.getX());
+            tag.putInt("displayLinkDy", displayLinkPos.getY() - worldPosition.getY());
+            tag.putInt("displayLinkDz", displayLinkPos.getZ() - worldPosition.getZ());
+        }
+
+        CompoundTag forcedChunksTag = new CompoundTag();
+        long[] forcedLongs = forcedChunks.stream().mapToLong(Long::longValue).toArray();
+        forcedChunksTag.putLongArray("chunks", forcedLongs);
+        if (forcedLevelKey != null) {
+            forcedChunksTag.putString("level", forcedLevelKey.location().toString());
+        }
+        tag.put("forcedChunksData", forcedChunksTag);
+        tag.putString("cameraGizmosJson", cameraGizmosJson);
     }
 
     @Override
@@ -494,6 +933,11 @@ public class MainComputerBlockEntity extends BlockEntity {
         super.loadAdditional(tag, registries);
         if (tag.contains("graph")) {
             graph.loadNBT(tag.getCompound("graph"));
+        }
+        if (tag.contains("cassette")) {
+            this.cassette = net.minecraft.world.item.ItemStack.parse(registries, tag.getCompound("cassette")).orElse(net.minecraft.world.item.ItemStack.EMPTY);
+        } else {
+            this.cassette = net.minecraft.world.item.ItemStack.EMPTY;
         }
         
         if (tag.contains("outputs")) {
@@ -527,6 +971,34 @@ public class MainComputerBlockEntity extends BlockEntity {
         cachedTargetName = tag.getString("cachedTargetName");
         jammedMaxChannel = tag.getInt("jammedMaxChannel");
         displayLinkText = tag.getString("displayLinkText");
+        lastDisplayLinkUpdate = tag.getLong("lastDisplayLinkUpdate");
+        if (tag.contains("displayLinkDx") && tag.contains("displayLinkDy") && tag.contains("displayLinkDz")) {
+            int dx = tag.getInt("displayLinkDx");
+            int dy = tag.getInt("displayLinkDy");
+            int dz = tag.getInt("displayLinkDz");
+            displayLinkPos = new BlockPos(worldPosition.getX() + dx, worldPosition.getY() + dy, worldPosition.getZ() + dz);
+        } else {
+            displayLinkPos = null;
+        }
+
+        if (tag.contains("forcedChunksData")) {
+            CompoundTag forcedChunksTag = tag.getCompound("forcedChunksData");
+            long[] forcedLongs = forcedChunksTag.getLongArray("chunks");
+            forcedChunks.clear();
+            for (long l : forcedLongs) {
+                forcedChunks.add(l);
+            }
+            if (forcedChunksTag.contains("level")) {
+                String levelLoc = forcedChunksTag.getString("level");
+                forcedLevelKey = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, ResourceLocation.parse(levelLoc));
+            }
+        }
+
+        if (tag.contains("cameraGizmosJson")) {
+            cameraGizmosJson = tag.getString("cameraGizmosJson");
+        } else {
+            cameraGizmosJson = "[]";
+        }
 
         if (level != null && !level.isClientSide()) {
             updateListeners();
@@ -547,8 +1019,69 @@ public class MainComputerBlockEntity extends BlockEntity {
 
     public void tick() {
         if (level != null && !level.isClientSide()) {
+            if (level instanceof net.minecraft.server.level.ServerLevel sl && !sl.getServer().isRunning()) {
+                return;
+            }
             updateCachedTarget();
+            
+            boolean wasConnected = isModuleConnected("jammer");
+            int wasJammersCount = getJammers().size();
+            List<int[]> wasRanges = new ArrayList<>();
+            for (int[] r : activeJammedRanges) {
+                wasRanges.add(new int[]{r[0], r[1]});
+            }
+
             evaluateGraph();
+
+            boolean nowConnected = isModuleConnected("jammer");
+            int nowJammersCount = getJammers().size();
+            List<int[]> nowRanges = activeJammedRanges;
+
+            boolean changed = (wasConnected != nowConnected) 
+                    || (wasJammersCount != nowJammersCount)
+                    || !rangesEqual(wasRanges, nowRanges);
+
+            if (changed) {
+                com.radiologistics.create.radio.RadioNetworkManager.updateAllRedstoneLinks(level);
+            }
+            
+            if (level.getGameTime() % 20 == 0) {
+                try {
+                    Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+                    if (subLevelClass.isInstance(level)) {
+                        java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
+                        net.minecraft.world.level.Level parentLevel = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
+                        if (parentLevel instanceof net.minecraft.server.level.ServerLevel serverParentLevel) {
+                            Set<Long> targets = new HashSet<>();
+                            Class<?> companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
+                            Object companion = companionClass.getField("INSTANCE").get(null);
+                            java.lang.reflect.Method projectMethod = companionClass.getMethod("projectOutOfSubLevel", net.minecraft.world.level.Level.class, net.minecraft.world.phys.Vec3.class);
+                            net.minecraft.world.phys.Vec3 projected = (net.minecraft.world.phys.Vec3) projectMethod.invoke(companion, level, new net.minecraft.world.phys.Vec3(worldPosition.getX() + 0.5, worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5));
+                            if (projected != null) {
+                                int pX = ((int) Math.floor(projected.x)) >> 4;
+                                int pZ = ((int) Math.floor(projected.z)) >> 4;
+                                // Force a 3x3 chunk grid around the ship's parent-world position
+                                for (int dx = -1; dx <= 1; dx++) {
+                                    for (int dz = -1; dz <= 1; dz++) {
+                                        targets.add(net.minecraft.world.level.ChunkPos.asLong(pX + dx, pZ + dz));
+                                    }
+                                }
+                            }
+                            updateForcedChunks(targets, serverParentLevel);
+                            return;
+                        }
+                    }
+
+                } catch (Exception ignored) {}
+                
+                if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                    Set<Long> targets = new HashSet<>();
+                    int cx = worldPosition.getX() >> 4;
+                    int cz = worldPosition.getZ() >> 4;
+                    targets.add(net.minecraft.world.level.ChunkPos.asLong(cx, cz));
+                    updateForcedChunks(targets, serverLevel);
+                }
+            }
         }
     }
 
@@ -622,5 +1155,13 @@ public class MainComputerBlockEntity extends BlockEntity {
             return RadioNetworkManager.sanitizeChannel(String.valueOf(graph.getVariables().getOrDefault(vn.getVariableName(), "")));
         }
         return null;
+    }
+
+    private boolean rangesEqual(List<int[]> a, List<int[]> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            if (a.get(i)[0] != b.get(i)[0] || a.get(i)[1] != b.get(i)[1]) return false;
+        }
+        return true;
     }
 }

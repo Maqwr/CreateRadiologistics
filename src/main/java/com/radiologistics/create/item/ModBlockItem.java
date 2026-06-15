@@ -122,7 +122,7 @@ public class ModBlockItem extends BlockItem {
             String blockId = getBlock().getDescriptionId();
             if (blockId.startsWith("block.")) {
                 String key = "tooltip." + blockId.substring(6);
-                String translated = net.minecraft.locale.Language.getInstance().getOrDefault(key);
+                String translated = net.minecraft.network.chat.Component.translatable(key).getString();
                 if (!translated.equals(key)) {
                     for (String line : translated.split("\n")) {
                         tooltipComponents.add(parseFormatting(line));

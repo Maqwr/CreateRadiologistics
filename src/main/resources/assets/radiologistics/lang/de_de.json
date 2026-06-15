@@ -11,5 +11,48 @@
   "item.radiologistics.wired_inertia_fuze": "Kabelgebundener Trägheitszünder",
   "itemGroup.radiologistics_tab": "Create: Radiologistics",
   "tooltip.radiologistics.hold_shift": "Halte Shift für Details",
-  "tooltip.radiologistics.wired_inertia_fuze": "Agiert als Aufschlagzünder.\n- Kann in große Kanonengeschosse eingesetzt werden.\n- Wenn das Geschoss mit Redstone aktiviert wird, fliegt es in Blickrichtung los, ohne vorzeitig zu explodieren."
+  "tooltip.radiologistics.wired_inertia_fuze": "Agiert als Aufschlagzünder.\n- Kann in große Kanonengeschosse eingesetzt werden.\n- Wenn das Geschoss mit Redstone aktiviert wird, fliegt es in Blickrichtung los, ohne vorzeitig zu explodieren.",
+
+  "item.radiologistics.wired_inertia_fuze.tooltip.chance": "Aufschlags-Explosionschance",
+  "item.radiologistics.wired_inertia_fuze.tooltip.chance.value": "Beim Aufprall hat dieser Zünder eine Chance von _%s%%_ zu explodieren.",
+  "item.radiologistics.wired_inertia_fuze.tooltip.durability": "Durchdringungshaltbarkeit",
+  "item.radiologistics.wired_inertia_fuze.tooltip.durability.value": "Dieser Zünder kann durch _%s_ Blöcke dringen, bevor er bricht.",
+
+  "item.radiologistics.incomplete_pilot_helmet": "Unvollständiger Pilotenhelm",
+  "item.radiologistics.pilot_helmet": "Pilotenhelm",
+  "item.radiologistics.wire": "Draht",
+  "block.radiologistics.camera_module": "Kameramodul",
+  "block.radiologistics.transparent_screen": "Transparenter Bildschirm",
+  "tooltip.radiologistics.pilot_helmet": "Schützt Ihren Kopf und kommuniziert mit Computern.\n- Klicken Sie mit der rechten Maustaste auf einen Hauptcomputer, um ihn mit dem Helm zu verbinden.\n- Liefert Spielerposition und -rotation, wenn er getragen wird.",
+  "tooltip.radiologistics.wire": "Dient zum direkten Verbinden von Anzeigetafeln mit dem Hauptcomputer.\n- Klicken Sie mit der rechten Maustaste auf den Hauptcomputer, um den Draht zu binden, und dann auf eine Anzeigetafel, um sie zu verbinden.",
+  "tooltip.radiologistics.camera_module": "Erfasst und gibt Bilder für Bildschirme aus.\n§6Hinzugefügte Knoten:\n§e- Kamera: §7Erfasst Sichtfelddaten.",
+  "tooltip.radiologistics.transparent_screen": "Zeigt High-Tech-HUD-Overlays und Telemetrie an.\n§6Hinzugefügte Knoten:\n§e- Bildschirm: §7Zeigt visuelle HUD-Elemente an.",
+  "tooltip.radiologistics.helmet_linked": "Pilotenhelm mit Computer bei %s verbunden",
+  "tooltip.radiologistics.wire_linked": "Draht mit Computer bei %s verbunden",
+  "tooltip.radiologistics.wire_no_computer": "Dieser Draht ist mit keinem Computer verbunden! Klicken Sie zuerst auf den Hauptcomputer.",
+  "tooltip.radiologistics.wire_computer_lost": "Der verbundene Computer konnte nicht gefunden werden.",
+  "tooltip.radiologistics.wire_already_connected": "Diese Anzeige ist bereits im Computernetzwerk registriert.",
+  "tooltip.radiologistics.wire_connected": "Anzeigetafel bei %s mit dem Netzwerk verbunden.",
+  "gui.radiologistics.incompatible_ports": "Inkompatible Port-Typen!",
+  "radiologistics.node_ponder.shape.title": "Form",
+  "radiologistics.node_ponder.shape.desc": "Ein konstanter Formtyp (Rechteck, Kreis, Linie, Text, Punkt). Klicken Sie auf die Wechseltaste, um Formen durchzuwechseln.",
+  "radiologistics.node_ponder.shape.compat": "Gizmos 2D, Gizmos 3D",
+  "radiologistics.node_ponder.color_rgb.title": "Farbe (RGB)",
+  "radiologistics.node_ponder.color_rgb.desc": "Kombiniert numerische R-, G-, B-Eingänge (0-255) zu einem einzigen Farbwert.",
+  "radiologistics.node_ponder.color_rgb.compat": "Gizmos 2D, Gizmos 3D",
+
+  "radiologistics.node_ponder.random.title": "Zufall",
+  "radiologistics.node_ponder.random.desc": "Erzeugt eine zufällige Dezimalzahl zwischen min und max Eingängen.",
+  "radiologistics.node_ponder.random.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
+
+  "radiologistics.node_ponder.degree_vector.title": "Gradvektor",
+  "radiologistics.node_ponder.degree_vector.desc": "Berechnet die kürzeste Winkeldifferenz zwischen Grad A und Grad B mit Winkelumbruch bei -180 und 180 Grad.",
+  "radiologistics.node_ponder.degree_vector.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
+
+  "message.radiologistics.cassette_inserted": "Kassette in den Computer eingesetzt.",
+  "message.radiologistics.cassette_extracted": "Kassette aus dem Computer entfernt.",
+
+  "radiologistics.node_ponder.cannon_rot.title": "Kanonendrehung",
+  "radiologistics.node_ponder.cannon_rot.desc": "Fragt die aktuellen Pitch- und Yaw-Winkel der verbundenen Kanonenhalterung ab. Erfordert ein verkabeltes Kanonenhalterungs-Modul.",
+  "radiologistics.node_ponder.cannon_rot.compat": "Number Viewer, Subtract, Atan2"
 }

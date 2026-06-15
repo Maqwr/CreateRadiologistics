@@ -11,7 +11,11 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +24,7 @@ import org.slf4j.LoggerFactory;
 public class Radiologistics {
     public static final String MODID = "radiologistics";
     public static final Logger LOGGER = LoggerFactory.getLogger("Create: Radiologistics");
+    public static boolean isServerStopping = false;
 
     public Radiologistics(IEventBus modEventBus) {
         LOGGER.info("Initializing Create: Radiologistics...");
@@ -36,9 +41,39 @@ public class Radiologistics {
 
         // Hook server lifecycle events to clear network registry and prevent leaks
         NeoForge.EVENT_BUS.addListener(this::onServerAboutToStart);
+        NeoForge.EVENT_BUS.addListener(this::onServerStopping);
         NeoForge.EVENT_BUS.addListener(this::onServerStopped);
         NeoForge.EVENT_BUS.addListener(this::onBlockPlaced);
         NeoForge.EVENT_BUS.addListener(this::onBlockRightClicked);
+        NeoForge.EVENT_BUS.addListener(this::onPlayerTick);
+    }
+
+    private void onPlayerTick(net.neoforged.neoforge.event.tick.PlayerTickEvent.Post event) {
+        if (event.getEntity() == null) return;
+        net.minecraft.world.entity.player.Player player = event.getEntity();
+        if (player.level().isClientSide()) return;
+
+        // Perform check once a second for performance
+        if (player.level().getGameTime() % 20 != 0) return;
+
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.getItem() instanceof com.radiologistics.create.item.PilotHelmetItem) {
+                net.minecraft.world.item.component.CustomData customData = stack.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                if (customData != null) {
+                    CompoundTag tag = customData.copyTag();
+                    if (tag.contains("LinkedComputer")) {
+                        BlockPos linkedPos = BlockPos.of(tag.getLong("LinkedComputer"));
+                        net.minecraft.world.level.block.entity.BlockEntity be = com.radiologistics.create.block.BaseModuleBlock.resolveBlockEntity(player.level(), linkedPos);
+                        if (!(be instanceof com.radiologistics.create.block.MainComputerBlockEntity)) {
+                            CompoundTag newTag = customData.copyTag();
+                            newTag.remove("LinkedComputer");
+                            stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.of(newTag));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void commonSetup(final net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent event) {
@@ -51,12 +86,18 @@ public class Radiologistics {
     }
 
     private void onServerAboutToStart(ServerAboutToStartEvent event) {
-        LOGGER.info("Server starting - clearing radio channels...");
+        LOGGER.info("[Radiologistics] Server starting - clearing radio channels...");
         RadioNetworkManager.clearChannels();
     }
 
+    private void onServerStopping(ServerStoppingEvent event) {
+        LOGGER.info("[Radiologistics] Server stopping.");
+        isServerStopping = true;
+    }
+
     private void onServerStopped(ServerStoppedEvent event) {
-        LOGGER.info("Server stopped - clearing radio channels...");
+        isServerStopping = false;
+        LOGGER.info("[Radiologistics] Server stopped - clearing radio channels.");
         RadioNetworkManager.clearChannels();
     }
 

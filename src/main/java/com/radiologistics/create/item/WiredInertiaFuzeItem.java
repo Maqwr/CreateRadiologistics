@@ -64,7 +64,7 @@ public class WiredInertiaFuzeItem extends InertiaFuzeItem {
 
         if (isShiftDown) {
             String key = "tooltip.radiologistics.wired_inertia_fuze";
-            String translated = net.minecraft.locale.Language.getInstance().getOrDefault(key);
+            String translated = net.minecraft.network.chat.Component.translatable(key).getString();
             if (!translated.equals(key)) {
                 for (String line : translated.split("\n")) {
                     tooltipComponents.add(com.radiologistics.create.item.ModBlockItem.parseFormatting(line));

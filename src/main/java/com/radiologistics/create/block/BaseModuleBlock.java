@@ -12,14 +12,23 @@ import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.ChatFormatting;
 
-public abstract class BaseModuleBlock extends Block implements EntityBlock {
+public abstract class BaseModuleBlock extends Block implements EntityBlock, com.simibubi.create.content.equipment.wrench.IWrenchable {
     protected final String moduleType;
 
     public BaseModuleBlock(Properties properties, String moduleType) {
         super(properties);
         this.moduleType = moduleType;
+    }
+
+    @Override
+    protected net.minecraft.world.ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, net.minecraft.world.InteractionHand hand, net.minecraft.world.phys.BlockHitResult hitResult) {
+        if (WrenchHelper.isWrench(stack)) {
+            return WrenchHelper.handleWrench(state, level, pos, player, stack);
+        }
+        return super.useItemOn(stack, state, level, pos, player, hand, hitResult);
     }
 
     public String getModuleType() {
@@ -30,6 +39,31 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock {
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
         if (!level.isClientSide() && placer instanceof ServerPlayer player) {
+            // Спеціальна логіка для екранів (мультиблок)
+            if (moduleType.equals("screen")) {
+                BlockPos targetPos = null;
+                for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                    BlockPos neighborPos = pos.relative(dir);
+                    BlockEntity neighborBE = resolveBlockEntity(level, neighborPos);
+                    if (neighborBE instanceof ScreenBlockEntity neighborScreen) {
+                        BlockPos compPos = neighborScreen.getComputerPos();
+                        if (compPos != null) {
+                            targetPos = compPos;
+                            break;
+                        }
+                    }
+                }
+                if (targetPos != null) {
+                    BlockEntity moduleBE = level.getBlockEntity(pos);
+                    if (moduleBE instanceof BaseModuleBlockEntity module) {
+                        module.setComputerPos(targetPos);
+                        module.setChanged();
+                    }
+                    player.displayClientMessage(Component.literal("success (connected to screen group)").withStyle(net.minecraft.ChatFormatting.GREEN), true);
+                    return; // Успішно повертаємося, не знищуючи блок!
+                }
+            }
+
             BlockPos computerPos = PlayerLinkManager.getPendingLink(player.getUUID());
             if (computerPos != null) {
                 BlockEntity be = resolveBlockEntity(level, computerPos);
@@ -59,9 +93,11 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock {
             } else {
                 player.displayClientMessage(Component.literal("no computer assigned").withStyle(ChatFormatting.RED), true);
             }
-            
             // Pop the block back as an item if linking is required but failed
-            level.destroyBlock(pos, true);
+            if (!player.isCreative()) {
+                Block.popResource(level, pos, new ItemStack(this));
+            }
+            level.removeBlock(pos, false);
         }
     }
 
@@ -82,17 +118,16 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock {
                     }
                 }
                 if (!level.isClientSide() && moduleType.equals("audio")) {
-                    com.radiologistics.create.node.nodes.SoundPlayNode.stopPlaying(pos);
-                    com.radiologistics.create.node.nodes.TextSpeakNode.stopPlaying(pos);
+                    com.radiologistics.create.node.nodes.AudioPlayNode.stopPlaying(pos);
                     for (net.minecraft.world.entity.player.Player player : level.players()) {
                         if (player instanceof ServerPlayer serverPlayer) {
                             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
                                 serverPlayer, 
-                                new com.radiologistics.create.network.PlayAudioModulePacket(pos, false, "url", "", 1.0, 1.0)
+                                new com.radiologistics.create.network.PlayAudioModulePacket(pos, false, "url", "", 1.0, 1.0, 0.0)
                             );
                             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
                                 serverPlayer, 
-                                new com.radiologistics.create.network.PlayAudioModulePacket(pos, false, "tts", "", 1.0, 1.0)
+                                new com.radiologistics.create.network.PlayAudioModulePacket(pos, false, "tts", "", 1.0, 1.0, 0.0)
                             );
                         }
                     }
@@ -102,31 +137,68 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock {
         }
     }
 
+    private static boolean reflectionChecked = false;
+    private static Class<?> subLevelClass = null;
+    private static java.lang.reflect.Method getLevelMethod = null;
+    private static Class<?> companionClass = null;
+    private static Object companionInstance = null;
+    private static java.lang.reflect.Method getContainingMethod = null;
+
+    private static void initReflection() {
+        if (reflectionChecked) return;
+        reflectionChecked = true;
+        try {
+            subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+            getLevelMethod = subLevelClass.getMethod("getLevel");
+        } catch (Throwable ignored) {}
+        try {
+            companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
+            companionInstance = companionClass.getField("INSTANCE").get(null);
+            getContainingMethod = companionClass.getMethod("getContaining", Level.class, net.minecraft.core.Vec3i.class);
+        } catch (Throwable ignored) {}
+    }
+
     public static BlockEntity resolveBlockEntity(Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be != null) return be;
-        try {
-            Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-            if (subLevelClass.isInstance(level)) {
-                java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
+        
+        // 1. Check local level first (if chunk is loaded)
+        if (level.hasChunkAt(pos)) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be != null) return be;
+        }
+        
+        // 2. If server is stopping, bypass reflection/sublevel lookups
+        if (com.radiologistics.create.Radiologistics.isServerStopping) {
+            return null;
+        }
+
+        // 3. Initialize reflection
+        initReflection();
+
+        // 4. Try sublevel parent check
+        if (subLevelClass != null && getLevelMethod != null && subLevelClass.isInstance(level)) {
+            try {
                 Level parentLevel = (Level) getLevelMethod.invoke(level);
-                if (parentLevel != null) {
-                    be = parentLevel.getBlockEntity(pos);
+                if (parentLevel != null && parentLevel.hasChunkAt(pos)) {
+                    BlockEntity be = parentLevel.getBlockEntity(pos);
                     if (be != null) return be;
                 }
-            }
-        } catch (Exception ignored) {}
-        try {
-            Class<?> companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
-            Object companion = companionClass.getField("INSTANCE").get(null);
-            java.lang.reflect.Method getContainingMethod = companionClass.getMethod("getContaining", Level.class, net.minecraft.core.Vec3i.class);
-            Object subLevelAccess = getContainingMethod.invoke(companion, level, pos);
-            if (subLevelAccess instanceof Level subLevel) {
-                be = subLevel.getBlockEntity(pos);
-                if (be != null) return be;
-            }
-        } catch (Exception ignored) {}
+            } catch (Throwable ignored) {}
+        }
+
+        // 5. Try SableCompanion containing check
+        if (companionInstance != null && getContainingMethod != null) {
+            try {
+                Object subLevelAccess = getContainingMethod.invoke(companionInstance, level, pos);
+                if (subLevelAccess instanceof Level subLevel) {
+                    if (subLevel.hasChunkAt(pos)) {
+                        BlockEntity be = subLevel.getBlockEntity(pos);
+                        if (be != null) return be;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
         return null;
     }
 

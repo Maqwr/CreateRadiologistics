@@ -22,13 +22,29 @@ public class ClientOnlyHandler {
         PlayerLinkManager.setClientPendingLink(pos);
     }
 
-    public static void handlePlayAudioModule(BlockPos pos, boolean play, String typeStr, String data, double volume, double pitch) {
+    public static void handlePlayAudioModule(BlockPos pos, boolean play, String typeStr, String data, double volume, double pitch, double seekSeconds) {
         if (!play) {
             ClientAudioPlayer.stop(pos);
         } else if ("tts".equals(typeStr)) {
             ClientAudioPlayer.playTTS(pos, data, volume, pitch);
         } else if ("url".equals(typeStr)) {
-            ClientAudioPlayer.playURL(pos, data, volume, pitch);
+            ClientAudioPlayer.playURL(pos, data, volume, pitch, seekSeconds);
         }
+    }
+
+    private static String activeHelmetGizmosJson = "[]";
+    private static BlockPos activeHelmetComputerPos = null;
+
+    public static void handleSyncHelmetGizmos(BlockPos pos, String json) {
+        activeHelmetComputerPos = pos;
+        activeHelmetGizmosJson = json != null ? json : "[]";
+    }
+
+    public static String getActiveHelmetGizmosJson() {
+        return activeHelmetGizmosJson;
+    }
+
+    public static BlockPos getActiveHelmetComputerPos() {
+        return activeHelmetComputerPos;
     }
 }

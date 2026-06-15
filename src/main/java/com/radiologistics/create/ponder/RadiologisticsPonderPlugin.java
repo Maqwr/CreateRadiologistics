@@ -22,5 +22,7 @@ public class RadiologisticsPonderPlugin implements PonderPlugin {
         helper.addStoryBoard(ModItems.ANTENNA.getId(), "antenna", RadiologisticsPonderScenes::networkScene);
         helper.addStoryBoard(ModItems.JAMMER.getId(), "jammer", RadiologisticsPonderScenes::networkScene);
         helper.addStoryBoard(ModItems.AUDIO_MODULE.getId(), "audio_module", RadiologisticsPonderScenes::networkScene);
+        helper.addStoryBoard(ModItems.TRANSPARENT_SCREEN.getId(), "main_computer", RadiologisticsPonderScenes::screenScene);
+        helper.addStoryBoard(ModItems.PILOT_HELMET.getId(), "main_computer", RadiologisticsPonderScenes::helmetScene);
     }
 }

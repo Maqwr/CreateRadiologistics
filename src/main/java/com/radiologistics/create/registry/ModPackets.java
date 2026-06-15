@@ -56,5 +56,12 @@ public class ModPackets {
             PlayAudioModulePacket.STREAM_CODEC,
             PacketHandler.Client::handlePlayAudioModule
         );
+
+        // Server -> Client
+        registrar.playToClient(
+            SyncHelmetGizmosPacket.TYPE,
+            SyncHelmetGizmosPacket.STREAM_CODEC,
+            PacketHandler.Client::handleSyncHelmetGizmos
+        );
     }
 }

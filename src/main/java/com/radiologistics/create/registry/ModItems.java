@@ -33,4 +33,9 @@ public class ModItems {
         }
         return new Item(new Item.Properties());
     });
+
+    public static final DeferredHolder<Item, Item> INCOMPLETE_PILOT_HELMET = ITEMS.register("incomplete_pilot_helmet", () -> new com.simibubi.create.content.processing.sequenced.SequencedAssemblyItem(new Item.Properties().stacksTo(1)));
+    public static final DeferredHolder<Item, Item> PILOT_HELMET = ITEMS.register("pilot_helmet", () -> new com.radiologistics.create.item.PilotHelmetItem(new Item.Properties().stacksTo(1)));
+    public static final DeferredHolder<Item, Item> WIRE = ITEMS.register("wire", () -> new com.radiologistics.create.item.WireItem(new Item.Properties().stacksTo(64)));
+    public static final DeferredHolder<Item, BlockItem> TRANSPARENT_SCREEN = ITEMS.register("transparent_screen", () -> new ModBlockItem(ModBlocks.TRANSPARENT_SCREEN.get(), new Item.Properties()));
 }

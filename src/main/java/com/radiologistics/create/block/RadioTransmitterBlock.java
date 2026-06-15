@@ -19,7 +19,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.level.BlockGetter;
 
-public class RadioTransmitterBlock extends Block implements EntityBlock {
+public class RadioTransmitterBlock extends Block implements EntityBlock, com.simibubi.create.content.equipment.wrench.IWrenchable {
     public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING = net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
 
     private static final VoxelShape SHAPE = Shapes.or(
@@ -48,6 +48,9 @@ public class RadioTransmitterBlock extends Block implements EntityBlock {
 
     @Override
     protected net.minecraft.world.ItemInteractionResult useItemOn(net.minecraft.world.item.ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hitResult) {
+        if (WrenchHelper.isWrench(stack)) {
+            return WrenchHelper.handleWrench(state, level, pos, player, stack);
+        }
         if (stack.is(com.radiologistics.create.registry.ModItems.ANTENNA.get())) {
             if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
                 com.radiologistics.create.network.PlayerLinkManager.setPendingLink(serverPlayer, pos);

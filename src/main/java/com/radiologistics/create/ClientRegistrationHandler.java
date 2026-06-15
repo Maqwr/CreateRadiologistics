@@ -18,6 +18,7 @@ public class ClientRegistrationHandler {
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.RADIO_TRANSMITTER.get(), RadioTransmitterRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.GYROSCOPE_SENSOR.get(), GyroscopeSensorRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.TRANSPARENT_SCREEN.get(), com.radiologistics.create.block.ScreenBlockEntityRenderer::new);
     }
 
     @SubscribeEvent
@@ -29,5 +30,6 @@ public class ClientRegistrationHandler {
     @SubscribeEvent
     public static void clientSetup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {
         net.createmod.ponder.foundation.PonderIndex.addPlugin(new com.radiologistics.create.ponder.RadiologisticsPonderPlugin());
+        com.radiologistics.create.compat.VistaIntegrationHelper.disableVistaDebugLines();
     }
 }

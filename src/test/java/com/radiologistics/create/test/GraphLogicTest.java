@@ -239,21 +239,98 @@ public class GraphLogicTest {
     }
 
     @Test
-    public void dumpRadarReflection() {
+    public void dumpRedstoneLinkReflection() {
         try {
-            Class<?> worldClass = Class.forName("net.createmod.ponder.api.scene.WorldInstructions");
-            System.out.println("=== WorldInstructions Methods ===");
-            for (java.lang.reflect.Method method : worldClass.getDeclaredMethods()) {
-                System.out.println(method.toString());
+            Class<?> clazz = Class.forName("com.simibubi.create.content.redstone.link.IRedstoneLinkable");
+            System.out.println("=== IRedstoneLinkable Methods ===");
+            for (java.lang.reflect.Method m : clazz.getDeclaredMethods()) {
+                System.out.print("  " + m.getReturnType().getSimpleName() + " " + m.getName() + "(");
+                Class<?>[] params = m.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    System.out.print(params[i].getSimpleName());
+                    if (i < params.length - 1) System.out.print(", ");
+                }
+                System.out.println(")");
+            }
+            
+            Class<?> handlerClass = Class.forName("com.simibubi.create.content.redstone.link.RedstoneLinkNetworkHandler");
+            System.out.println("=== RedstoneLinkNetworkHandler Methods ===");
+            for (java.lang.reflect.Method m : handlerClass.getDeclaredMethods()) {
+                System.out.print("  " + m.getReturnType().getSimpleName() + " " + m.getName() + "(");
+                Class<?>[] params = m.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    System.out.print(params[i].getSimpleName());
+                    if (i < params.length - 1) System.out.print(", ");
+                }
+                System.out.println(")");
+            }
+            System.out.println("=== RedstoneLinkNetworkHandler Fields ===");
+            for (java.lang.reflect.Field f : handlerClass.getDeclaredFields()) {
+                System.out.println("  " + f.getType().getSimpleName() + " " + f.getName());
             }
 
-            Class<?> overlayClass = Class.forName("net.createmod.ponder.api.scene.OverlayInstructions");
-            System.out.println("=== OverlayInstructions Methods ===");
-            for (java.lang.reflect.Method method : overlayClass.getDeclaredMethods()) {
-                System.out.println(method.toString());
+            Class<?> behaviourClass = Class.forName("com.simibubi.create.content.redstone.link.LinkBehaviour");
+            System.out.println("=== LinkBehaviour Methods ===");
+            for (java.lang.reflect.Method m : behaviourClass.getDeclaredMethods()) {
+                System.out.print("  " + m.getReturnType().getSimpleName() + " " + m.getName() + "(");
+                Class<?>[] params = m.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    System.out.print(params[i].getSimpleName());
+                    if (i < params.length - 1) System.out.print(", ");
+                }
+                System.out.println(")");
+            }
+
+            try {
+                Class<?> videoSourceClass = Class.forName("net.mehvahdjukaar.vista.client.video_source.IVideoSource");
+                System.out.println("=== IVideoSource Methods ===");
+                for (java.lang.reflect.Method m : videoSourceClass.getDeclaredMethods()) {
+                    System.out.println("  " + m.getReturnType().getSimpleName() + " " + m.getName());
+                }
+            } catch (Throwable ignored) {}
+
+            try {
+                Class<?> vfBEClass = Class.forName("net.mehvahdjukaar.vista.common.view_finder.ViewFinderBlockEntity");
+                System.out.println("=== ViewFinderBlockEntity Methods ===");
+                for (java.lang.reflect.Method m : vfBEClass.getDeclaredMethods()) {
+                    System.out.println("  " + m.getReturnType().getSimpleName() + " " + m.getName());
+                }
+                System.out.println("=== ViewFinderBlockEntity Fields ===");
+                for (java.lang.reflect.Field f : vfBEClass.getDeclaredFields()) {
+                    System.out.println("  " + f.getType().getSimpleName() + " " + f.getName());
+                }
+            } catch (Throwable ignored) {}
+
+            try {
+                String[] potentialClasses = {
+                    "rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlockEntity",
+                    "rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlock",
+                    "rbasamoyai.createbigcannons.cannon_mount.CannonMountBlockEntity",
+                    "rbasamoyai.createbigcannons.cannon_mount.CannonMountBlock",
+                    "rbasamoyai.createbigcannons.cannons.cannon_mount.CannonMountBlockEntity",
+                    "rbasamoyai.createbigcannons.cannons.cannon_mount.CannonMountBlock"
+                };
+                System.out.println("=== CBC Class Search ===");
+                for (String clsName : potentialClasses) {
+                    try {
+                        Class<?> c = Class.forName(clsName);
+                        System.out.println("  FOUND: " + clsName);
+                        System.out.println("  Methods of " + c.getSimpleName() + ":");
+                        for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
+                            System.out.println("    " + m.getReturnType().getSimpleName() + " " + m.getName());
+                        }
+                    } catch (ClassNotFoundException ignored) {}
+                }
+            } catch (Throwable ignored) {}
+
+            // Inspect generic return type of networksIn
+            for (java.lang.reflect.Method m : handlerClass.getDeclaredMethods()) {
+                if (m.getName().equals("networksIn")) {
+                    System.out.println("networksIn generic return type: " + m.getGenericReturnType());
+                }
             }
         } catch (Throwable e) {
-            System.out.println("Could not dump reflection: " + e.toString());
+            e.printStackTrace();
         }
     }
 
@@ -405,6 +482,11 @@ public class GraphLogicTest {
         public void addActiveJammedRange(int start, int end) {
             jammedRangesList.add(new int[]{start, end});
         }
+
+        @Override
+        public BlockPos getModulePos(String type) {
+            return null;
+        }
     }
 
     @Test
@@ -434,45 +516,45 @@ public class GraphLogicTest {
 
         EvaluationContext context = new EvaluationContext(mockLevel, BlockPos.ZERO, computer, null);
 
-        // Case 1: 1 Jammer (max range size = 5)
+        // Case 1: 1 Jammer (max range size = 25)
         jammers.add(BlockPos.ZERO);
 
-        // Subcase 1a: Range [10, 14] (size 5) -> should preserve exactly
-        jammerNode.evaluate("", Map.of("start", 10, "end", 14), context);
+        // Subcase 1a: Range [10, 34] (size 25) -> should preserve exactly
+        jammerNode.evaluate("", Map.of("start", 10, "end", 34), context);
         assertEquals(1, ranges.size());
         assertEquals(10, ranges.get(0)[0]);
-        assertEquals(14, ranges.get(0)[1]);
+        assertEquals(34, ranges.get(0)[1]);
         ranges.clear();
 
-        // Subcase 1a_event: Range [10, 14] with event = false -> should NOT jam
-        jammerNode.evaluate("", Map.of("start", 10, "end", 14, "event", false), context);
+        // Subcase 1a_event: Range [10, 34] with event = false -> should NOT jam
+        jammerNode.evaluate("", Map.of("start", 10, "end", 34, "event", false), context);
         assertEquals(0, ranges.size());
 
-        // Subcase 1b: Range [10, 30] (size 21 > 5) -> should clamp to size 5, i.e., [10, 14]
-        jammerNode.evaluate("", Map.of("start", 10, "end", 30), context);
+        // Subcase 1b: Range [10, 50] (size 41 > 25) -> should clamp to size 25, i.e., [10, 34]
+        jammerNode.evaluate("", Map.of("start", 10, "end", 50), context);
         assertEquals(1, ranges.size());
         assertEquals(10, ranges.get(0)[0]);
-        assertEquals(14, ranges.get(0)[1]);
+        assertEquals(34, ranges.get(0)[1]);
         ranges.clear();
 
-        // Subcase 1c: Range [253, 260] (size 8 > 5) with overflow -> should clamp to [251, 255]
-        jammerNode.evaluate("", Map.of("start", 253, "end", 260), context);
+        // Subcase 1c: Range [250, 260] (size 11 <= 25) with overflow -> should clamp to [245, 255]
+        jammerNode.evaluate("", Map.of("start", 250, "end", 260), context);
         assertEquals(1, ranges.size());
-        assertEquals(251, ranges.get(0)[0]);
+        assertEquals(245, ranges.get(0)[0]);
         assertEquals(255, ranges.get(0)[1]);
         ranges.clear();
 
-        // Case 2: 3 Jammers (max range size = 15)
+        // Case 2: 3 Jammers (max range size = 75)
         jammers.clear();
         jammers.add(BlockPos.ZERO);
         jammers.add(BlockPos.ZERO);
         jammers.add(BlockPos.ZERO);
 
-        // Subcase 2a: Range [100, 120] (size 21 > 15) -> should clamp to size 15, i.e., [100, 114]
-        jammerNode.evaluate("", Map.of("start", 100, "end", 120), context);
+        // Subcase 2a: Range [100, 200] (size 101 > 75) -> should clamp to size 75, i.e., [100, 174]
+        jammerNode.evaluate("", Map.of("start", 100, "end", 200), context);
         assertEquals(1, ranges.size());
         assertEquals(100, ranges.get(0)[0]);
-        assertEquals(114, ranges.get(0)[1]);
+        assertEquals(174, ranges.get(0)[1]);
         ranges.clear();
     }
 
@@ -574,5 +656,98 @@ public class GraphLogicTest {
         // Concatenating "hello" and "world" -> "helloworld"
         Object resJoin = joinNode.evaluate("value", java.util.Map.of("text1", "hello", "text2", "world"), null);
         assertEquals("helloworld", resJoin);
+    }
+
+    @Test
+    public void testPosToRotAndRotToPosNodes() {
+        PosToRotNode posToRot = new PosToRotNode("p2r", 0, 0);
+        RotToPosNode rotToPos = new RotToPosNode("r2p", 0, 0);
+
+        // Test 1: Pos to Rot
+        // Let's compute yaw/pitch from (0,0,0) to (0,0,10)
+        // Yaw should be 0 (dx=0, dz=10 -> Math.atan2(0, 10) = 0)
+        // Pitch should be 0 (dy=0)
+        Object yaw = posToRot.evaluate("yaw", java.util.Map.of("x", 0.0, "y", 0.0, "z", 0.0, "x_end", 0.0, "y_end", 0.0, "z_end", 10.0), null);
+        Object pitch = posToRot.evaluate("pitch", java.util.Map.of("x", 0.0, "y", 0.0, "z", 0.0, "x_end", 0.0, "y_end", 0.0, "z_end", 10.0), null);
+        assertEquals(0L, yaw);
+        assertEquals(0L, pitch);
+
+        // From (0,0,0) to (10,0,0)
+        // Yaw should be -90 (dx=10, dz=0 -> Math.atan2(-10, 0) = -PI/2 -> -90 degrees)
+        Object yaw2 = posToRot.evaluate("yaw", java.util.Map.of("x", 0.0, "y", 0.0, "z", 0.0, "x_end", 10.0, "y_end", 0.0, "z_end", 0.0), null);
+        assertEquals(-90L, yaw2);
+
+        // From (0,0,0) to (0,10,0)
+        // Pitch should be -90 (dy=10, horizontalDist=0 -> Math.atan2(-10, 0) = -PI/2 -> -90 degrees)
+        Object pitch2 = posToRot.evaluate("pitch", java.util.Map.of("x", 0.0, "y", 0.0, "z", 0.0, "x_end", 0.0, "y_end", 10.0, "z_end", 0.0), null);
+        assertEquals(-90L, pitch2);
+
+        // Test 2: Rot to Pos
+        // Yaw = 0, Pitch = 0, distance = 10, start = (0,0,0) -> dx = 0, dz = 10, dy = 0 -> end = (0, 0, 10)
+        Object rx = rotToPos.evaluate("x_out", java.util.Map.of("yaw", 0.0, "pitch", 0.0, "distance", 10.0, "x", 0.0, "y", 0.0, "z", 0.0), null);
+        Object ry = rotToPos.evaluate("y_out", java.util.Map.of("yaw", 0.0, "pitch", 0.0, "distance", 10.0, "x", 0.0, "y", 0.0, "z", 0.0), null);
+        Object rz = rotToPos.evaluate("z_out", java.util.Map.of("yaw", 0.0, "pitch", 0.0, "distance", 10.0, "x", 0.0, "y", 0.0, "z", 0.0), null);
+        assertEquals(0L, rx);
+        assertEquals(0L, ry);
+        assertEquals(10L, rz);
+    }
+
+    @Test
+    public void testHelmetRotationNodeNormalization() {
+        assertEquals(-180.0, net.minecraft.util.Mth.wrapDegrees(180.0), 0.001);
+        assertEquals(-90.0, net.minecraft.util.Mth.wrapDegrees(270.0), 0.001);
+        assertEquals(170.0, net.minecraft.util.Mth.wrapDegrees(-190.0), 0.001);
+        assertEquals(45.0, net.minecraft.util.Mth.wrapDegrees(45.0), 0.001);
+    }
+
+    @Test
+    public void testAudioStreamFormatting() throws Exception {
+        SoundPlayNode soundPlay = new SoundPlayNode("sound_play1", 0, 0);
+        
+        net.minecraft.world.level.Level mockLevel = org.mockito.Mockito.mock(net.minecraft.world.level.Level.class);
+        org.mockito.Mockito.when(mockLevel.isClientSide()).thenReturn(false);
+        org.mockito.Mockito.when(mockLevel.getGameTime()).thenReturn(100L);
+
+        java.lang.reflect.Constructor<Object> objectConstructor = Object.class.getDeclaredConstructor();
+        sun.reflect.ReflectionFactory reflectionFactory = sun.reflect.ReflectionFactory.getReflectionFactory();
+        java.lang.reflect.Constructor<?> constructor = reflectionFactory.newConstructorForSerialization(
+                MockComputer.class, objectConstructor
+        );
+        MockComputer computer = (MockComputer) constructor.newInstance();
+
+        EvaluationContext context = new EvaluationContext(mockLevel, BlockPos.ZERO, computer, null);
+        
+        Object streamVal = soundPlay.evaluate("stream", Map.of(), context);
+        assertEquals("", streamVal);
+
+        Map<String, Object> inputs = Map.of("event", true, "link", "http://example.com/audio.mp3", "volume", 0.8, "pitch", 1.2);
+        soundPlay.evaluate("event", inputs, context);
+        Object playingStreamVal = soundPlay.evaluate("stream", inputs, context);
+        
+        assertTrue(playingStreamVal instanceof String);
+        String streamJson = (String) playingStreamVal;
+        assertTrue(streamJson.contains("\"audio_type\": \"sound\""));
+        assertTrue(streamJson.contains("\"url\": \"http://example.com/audio.mp3\""));
+        assertTrue(streamJson.contains("\"volume\": 0.80"));
+        assertTrue(streamJson.contains("\"pitch\": 1.20"));
+    }
+
+    @Test
+    public void testNewMathAndLogicNodes() {
+        RandomNode rand = new RandomNode("rand1", 0, 0);
+        DegreeVectorNode degVec = new DegreeVectorNode("dv1", 0, 0);
+
+        for (int i = 0; i < 100; i++) {
+            Object res = rand.evaluate("result", Map.of("min", 10, "max", 20), null);
+            assertTrue(res instanceof Number);
+            double val = ((Number) res).doubleValue();
+            assertTrue(val >= 10.0 && val <= 20.0);
+        }
+
+        assertEquals(90L, degVec.evaluate("result", Map.of("a", 90, "b", 180), null));
+        assertEquals(20L, degVec.evaluate("result", Map.of("a", 170, "b", -170), null));
+        assertEquals(-20L, degVec.evaluate("result", Map.of("a", -170, "b", 170), null));
+        double diff = ((Number) degVec.evaluate("result", Map.of("a", 0, "b", 180), null)).doubleValue();
+        assertTrue(Math.abs(diff) == 180.0);
     }
 }

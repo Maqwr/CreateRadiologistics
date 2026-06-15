@@ -29,6 +29,9 @@ public class RadioNetworkManager {
         for (MainComputerBlockEntity computer : activeComputers) {
             if (computer.getLevel() != null && level != null && computer.getLevel().dimension().equals(level.dimension())) {
                 if (computer.isModuleConnected("jammer")) {
+                    int N = computer.getJammers().size();
+                    double maxDist = 50.0 * N;
+                    double maxDistSq = maxDist * maxDist;
                     for (int[] range : computer.getActiveJammedRanges()) {
                         if (chVal >= range[0] && chVal <= range[1]) {
                             if (pos == null) {
@@ -36,7 +39,7 @@ public class RadioNetworkManager {
                             }
                             for (BlockPos jammerPos : computer.getJammers()) {
                                 double distSq = pos.distToCenterSqr(jammerPos.getX(), jammerPos.getY(), jammerPos.getZ());
-                                if (distSq <= 22500.0) { // 150 * 150 = 22500
+                                if (distSq <= maxDistSq) {
                                     return true;
                                 }
                             }
@@ -57,9 +60,12 @@ public class RadioNetworkManager {
         for (MainComputerBlockEntity computer : activeComputers) {
             if (computer.getLevel() != null && computer.getLevel().dimension().equals(level.dimension())) {
                 if (computer.isModuleConnected("jammer") && !computer.getActiveJammedRanges().isEmpty()) {
+                    int N = computer.getJammers().size();
+                    double maxDist = 50.0 * N;
+                    double maxDistSq = maxDist * maxDist;
                     for (BlockPos jammerPos : computer.getJammers()) {
                         double distSq = pos.distToCenterSqr(jammerPos.getX(), jammerPos.getY(), jammerPos.getZ());
-                        if (distSq <= 22500.0) { // 150 * 150 = 22500
+                        if (distSq <= maxDistSq) {
                             return true;
                         }
                     }
@@ -67,6 +73,32 @@ public class RadioNetworkManager {
             }
         }
         return false;
+    }
+
+    public static void updateAllRedstoneLinks(Level level) {
+        if (level == null || level.isClientSide()) return;
+        try {
+            var handler = com.simibubi.create.Create.REDSTONE_LINK_NETWORK_HANDLER;
+            var networks = handler.networksIn(level);
+            if (networks != null) {
+                List<Set<?>> networkSets = new ArrayList<>();
+                synchronized (networks) {
+                    for (Object val : networks.values()) {
+                        if (val instanceof Set<?> set && !set.isEmpty()) {
+                            networkSets.add(new HashSet<>(set));
+                        }
+                    }
+                }
+                for (Set<?> set : networkSets) {
+                    var first = set.iterator().next();
+                    if (first instanceof com.simibubi.create.content.redstone.link.IRedstoneLinkable linkable) {
+                        handler.updateNetworkOf(level, linkable);
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
     }
 
     // Maps channel name -> last broadcast game time tick

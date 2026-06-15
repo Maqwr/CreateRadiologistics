@@ -50,8 +50,8 @@ public class PacketHandler {
                 if (context.player() != null) {
                     BlockPos pos = payload.pos();
                     net.minecraft.world.level.Level level = context.player().level();
-                    long currentTick = level.getGameTime();
-                    com.radiologistics.create.node.nodes.SoundPlayNode.recordFinished(pos, currentTick);
+                    com.radiologistics.create.node.nodes.AudioPlayNode.recordFinished(pos, level.getGameTime());
+                    // Notify computers watching this audio position to re-evaluate
                     for (com.radiologistics.create.block.MainComputerBlockEntity computer : com.radiologistics.create.radio.RadioNetworkManager.activeComputers) {
                         if (computer.getLevel() == level) {
                             if (pos.equals(computer.getModulePos("audio")) || pos.equals(computer.getBlockPos())) {
@@ -85,7 +85,14 @@ public class PacketHandler {
 
         public static void handlePlayAudioModule(final PlayAudioModulePacket payload, final IPayloadContext context) {
             context.enqueueWork(() -> {
-                ClientOnlyHandler.handlePlayAudioModule(payload.pos(), payload.play(), payload.typeStr(), payload.data(), payload.volume(), payload.pitch());
+                ClientOnlyHandler.handlePlayAudioModule(payload.pos(), payload.play(), payload.typeStr(), payload.data(), payload.volume(), payload.pitch(), payload.seekSeconds());
+            });
+        }
+
+        public static void handleSyncHelmetGizmos(final SyncHelmetGizmosPacket payload, final IPayloadContext context) {
+            context.enqueueWork(() -> {
+                com.radiologistics.create.Radiologistics.LOGGER.info("[GIZMOS_3D_HELMET_CLIENT] Received packet: pos={} json={}", payload.computerPos(), payload.gizmosJson());
+                ClientOnlyHandler.handleSyncHelmetGizmos(payload.computerPos(), payload.gizmosJson());
             });
         }
     }

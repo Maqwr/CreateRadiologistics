@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "item": "minecraft:glass_pane"
+    },
+    "T": {
+      "item": "create:electron_tube"
+    },
+    "A": {
+      "item": "create:andesite_alloy"
+    }
+  },
+  "pattern": [
+    "GGG",
+    "GTG",
+    "AAA"
+  ],
+  "result": {
+    "count": 1,
+    "id": "radiologistics:transparent_screen"
+  }
+}

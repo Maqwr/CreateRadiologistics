@@ -28,8 +28,33 @@ public class RadarIntegration {
     public static RadarTrack getActiveOrAutoTarget(NetworkFiltererBlockEntity filterer) {
         if (filterer == null) return null;
         
+        java.util.Set<java.lang.String> ignoreList = null;
+        try {
+            java.lang.reflect.Method readIdentMethod = NetworkFiltererBlockEntity.class.getDeclaredMethod("readIdentificationFromSlot");
+            readIdentMethod.setAccessible(true);
+            com.happysg.radar.block.behavior.networks.config.IdentificationConfig ident = (com.happysg.radar.block.behavior.networks.config.IdentificationConfig) readIdentMethod.invoke(filterer);
+            
+            if (ident != null) {
+                java.lang.reflect.Method buildIgnoreMethod = NetworkFiltererBlockEntity.class.getDeclaredMethod("buildIgnoreList", com.happysg.radar.block.behavior.networks.config.IdentificationConfig.class);
+                buildIgnoreMethod.setAccessible(true);
+                ignoreList = (java.util.Set<java.lang.String>) buildIgnoreMethod.invoke(filterer, ident);
+            }
+        } catch (Exception ignored) {}
+
         RadarTrack track = filterer.activeTrackCache;
-        if (track != null) return track;
+        if (track != null) {
+            boolean ignored = false;
+            if (ignoreList != null && !ignoreList.isEmpty() && filterer.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                try {
+                    if (com.happysg.radar.block.behavior.networks.config.AutoTargetingHelper.isIgnoredByIdentification(track, serverLevel, ignoreList)) {
+                        ignored = true;
+                    }
+                } catch (Exception ignoredExc) {}
+            }
+            if (!ignored) {
+                return track;
+            }
+        }
         
         try {
             java.lang.reflect.Field targetingField = NetworkFiltererBlockEntity.class.getDeclaredField("targeting");
@@ -47,19 +72,6 @@ public class RadarIntegration {
                         java.lang.reflect.Field safeZonesField = NetworkFiltererBlockEntity.class.getDeclaredField("safeZones");
                         safeZonesField.setAccessible(true);
                         safeZones = (java.util.List<net.minecraft.world.phys.AABB>) safeZonesField.get(filterer);
-                    } catch (Exception ignored) {}
-
-                    java.util.Set<java.lang.String> ignoreList = null;
-                    try {
-                        java.lang.reflect.Method readIdentMethod = NetworkFiltererBlockEntity.class.getDeclaredMethod("readIdentificationFromSlot");
-                        readIdentMethod.setAccessible(true);
-                        com.happysg.radar.block.behavior.networks.config.IdentificationConfig ident = (com.happysg.radar.block.behavior.networks.config.IdentificationConfig) readIdentMethod.invoke(filterer);
-                        
-                        if (ident != null) {
-                            java.lang.reflect.Method buildIgnoreMethod = NetworkFiltererBlockEntity.class.getDeclaredMethod("buildIgnoreList", com.happysg.radar.block.behavior.networks.config.IdentificationConfig.class);
-                            buildIgnoreMethod.setAccessible(true);
-                            ignoreList = (java.util.Set<java.lang.String>) buildIgnoreMethod.invoke(filterer, ident);
-                        }
                     } catch (Exception ignored) {}
 
                     Vec3 filtererCenter = Vec3.atCenterOf(filterer.getBlockPos());
