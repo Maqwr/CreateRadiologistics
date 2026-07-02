@@ -18,11 +18,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @ForgeVoicechatPlugin
 public class VoiceChatPluginImpl implements VoicechatPlugin {
     private static VoicechatServerApi voicechatApi;
-    
-    // Track the last game time when a player spoke
+
     public static final Map<UUID, Long> lastSpokeTicks = new ConcurrentHashMap<>();
-    
-    // Track active relays: Map of speaking player UUID -> Set of target positions to relay to
+
     public static final Map<UUID, Set<RelayTarget>> activeRelays = new ConcurrentHashMap<>();
 
     public static class RelayTarget {
@@ -85,28 +83,26 @@ public class VoiceChatPluginImpl implements VoicechatPlugin {
     }
 
     private void onMicrophonePacket(MicrophonePacketEvent event) {
+        if (com.radiologistics.create.Radiologistics.isServerStopping) return;
         VoicechatConnection senderConn = event.getSenderConnection();
         if (senderConn == null) return;
-        
+
         ServerPlayer player = (ServerPlayer) senderConn.getPlayer().getPlayer();
         if (player == null) return;
-        
+
         UUID playerUUID = player.getUUID();
         long gameTime = player.serverLevel().getGameTime();
         lastSpokeTicks.put(playerUUID, gameTime);
 
-        // Periodically clean up expired relays for all players
         activeRelays.forEach((sourceUuid, targets) -> {
             targets.removeIf(t -> gameTime - t.lastTick > 10);
         });
 
-        // Check if there are active relays for this player
         Set<RelayTarget> targets = activeRelays.get(playerUUID);
         if (targets == null || targets.isEmpty()) return;
 
         MicrophonePacket micPacket = event.getPacket();
-        
-        // Relay to each target position
+
         for (RelayTarget target : targets) {
             net.minecraft.server.MinecraftServer server = player.getServer();
             if (server == null) continue;
@@ -117,7 +113,6 @@ public class VoiceChatPluginImpl implements VoicechatPlugin {
             List<ServerPlayer> nearbyPlayers = targetLevel.getPlayers(p -> p.distanceToSqr(target.pos.getX() + 0.5, target.pos.getY() + 0.5, target.pos.getZ() + 0.5) <= radius * radius);
             if (nearbyPlayers.isEmpty()) continue;
 
-            // Spawn note particles on the server thread to avoid concurrency issues
             if (gameTime - target.lastParticleTick >= 4) {
                 target.lastParticleTick = gameTime;
                 double px = target.pos.getX() + 0.5;

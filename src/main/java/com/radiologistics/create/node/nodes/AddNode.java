@@ -35,7 +35,7 @@ public class AddNode extends AlgoNode {
     @Override
     public Object evaluate(String outputPort, Map<String, Object> inputValues, EvaluationContext context) {
         double result = toDouble(inputValues.get("a")) + toDouble(inputValues.get("b"));
-        // Return integer if no fractional part
+
         if (result == Math.floor(result) && !Double.isInfinite(result)) {
             return (long) result;
         }

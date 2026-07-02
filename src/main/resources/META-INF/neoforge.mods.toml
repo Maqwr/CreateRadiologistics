@@ -4,7 +4,7 @@ license = "All Rights Reserved"
 
 [[mods]]
 modId = "radiologistics"
-version = "1.1.0"
+version = "1.1.1"
 displayName = "Create: Radiologistics"
 authors = "Antigravity"
 description = "Adds wireless radio networks and node-based algorithm programming to Minecraft as a Create addon."
@@ -61,6 +61,12 @@ side = "BOTH"
 
 [[dependencies.radiologistics]]
 modId = "voicechat"
+type = "optional"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.radiologistics]]
+modId = "vista"
 type = "optional"
 ordering = "AFTER"
 side = "BOTH"

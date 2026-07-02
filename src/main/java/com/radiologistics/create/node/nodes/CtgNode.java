@@ -36,7 +36,7 @@ public class CtgNode extends AlgoNode {
     public Object evaluate(String outputPort, Map<String, Object> inputValues, EvaluationContext context) {
         double val = toDouble(inputValues.get("number"));
         double tanVal = Math.tan(Math.toRadians(val));
-        if (tanVal == 0.0) return 0.0; // Avoid div by zero
+        if (tanVal == 0.0) return 0.0;
         double result = 1.0 / tanVal;
         if (result == Math.floor(result) && !Double.isInfinite(result)) {
             return (long) result;

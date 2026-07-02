@@ -23,7 +23,7 @@ public class PilotHelmetItem extends com.simibubi.create.content.equipment.armor
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, java.util.List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
         super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
-        
+
         boolean isShiftDown = false;
         if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             isShiftDown = ClientHelper.isShiftDown();

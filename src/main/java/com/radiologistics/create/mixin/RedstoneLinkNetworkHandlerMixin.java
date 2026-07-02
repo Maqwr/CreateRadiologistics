@@ -17,15 +17,13 @@ public class RedstoneLinkNetworkHandlerMixin {
     @Inject(method = "withinRange", at = @At("HEAD"), cancellable = true)
     private static void onWithinRange(IRedstoneLinkable from, IRedstoneLinkable to, CallbackInfoReturnable<Boolean> cir) {
         if (from == null || to == null) return;
-        
-        // Resolve level for from
+
         Level fromLevel = getLevelOf(from);
         if (fromLevel != null && RadioNetworkManager.isRedstoneLinkJammedAt(fromLevel, from.getLocation())) {
             cir.setReturnValue(false);
             return;
         }
 
-        // Resolve level for to
         Level toLevel = getLevelOf(to);
         if (toLevel != null && RadioNetworkManager.isRedstoneLinkJammedAt(toLevel, to.getLocation())) {
             cir.setReturnValue(false);

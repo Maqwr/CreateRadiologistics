@@ -1,12 +1,12 @@
 package com.radiologistics.create.item;
 
-import net.minecraft.client.gui.screens.Screen;
-
 public class ClientHelper {
     public static boolean isShiftDown() {
         try {
-            return Screen.hasShiftDown();
-        } catch (NoClassDefFoundError | Exception e) {
+            Class<?> screenClass = Class.forName("net.minecraft.client.gui.screens.Screen");
+            java.lang.reflect.Method method = screenClass.getMethod("hasShiftDown");
+            return (boolean) method.invoke(null);
+        } catch (Throwable t) {
             return false;
         }
     }

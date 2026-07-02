@@ -7,11 +7,6 @@ import net.minecraft.nbt.CompoundTag;
 
 import java.util.*;
 
-/**
- * Broadcasts a message on a dynamically-resolved radio channel.
- * Input "channel" can be wired from a Text/Signal node or left unconnected (defaults to "0").
- * Input "message" is the value to broadcast.
- */
 public class AntennaOutputNode extends AlgoNode {
 
     public AntennaOutputNode(String id, double x, double y) {
@@ -40,7 +35,7 @@ public class AntennaOutputNode extends AlgoNode {
 
     @Override
     public void loadProperties(CompoundTag tag) {
-        // No static properties — channel is now a dynamic input port.
+
     }
 
     @Override

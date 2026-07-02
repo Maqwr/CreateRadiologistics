@@ -19,8 +19,7 @@ public class PlayerLinkManager {
         } else {
             serverPendingLinks.put(player.getUUID(), pos);
         }
-        
-        // Sync to client
+
         PacketDistributor.sendToPlayer(player, new SyncPendingLinkPacket(Optional.ofNullable(pos)));
     }
 

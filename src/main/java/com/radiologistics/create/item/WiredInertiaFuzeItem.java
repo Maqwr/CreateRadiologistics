@@ -28,10 +28,10 @@ public class WiredInertiaFuzeItem extends InertiaFuzeItem {
                 AbstractBigCannonProjectile projectile = fuzedBlock.getProjectile(level, pos, state);
                 if (projectile != null) {
                     level.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-                    
+
                     Direction facing = state.hasProperty(FuzedProjectileBlock.FACING) ? state.getValue(FuzedProjectileBlock.FACING) : Direction.UP;
                     Vec3 orientation = new Vec3(facing.step());
-                    
+
                     try {
                         orientation = rbasamoyai.createbigcannons.CBCCompatTransformers.transformLocationNormal(level, pos, orientation);
                     } catch (Throwable ignored) {}
@@ -43,9 +43,9 @@ public class WiredInertiaFuzeItem extends InertiaFuzeItem {
                         center = rbasamoyai.createbigcannons.CBCCompatTransformers.transformVec3(level, center);
                     } catch (Throwable ignored) {}
                     projectile.setPos(center.x, center.y, center.z);
-                    
+
                     projectile.setDeltaMovement(orientation.scale(1.5));
-                    
+
                     level.addFreshEntity(projectile);
                 }
             }
@@ -56,7 +56,7 @@ public class WiredInertiaFuzeItem extends InertiaFuzeItem {
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
         super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
-        
+
         boolean isShiftDown = false;
         if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             isShiftDown = com.radiologistics.create.item.ClientHelper.isShiftDown();

@@ -60,7 +60,7 @@ public class RadioTransmitterBlockEntity extends BlockEntity {
                 return antenna.getAntennaHeight();
             }
         }
-        // Fallback to adjacent search if not linked via target
+
         for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
             BlockPos adjacent = worldPosition.relative(dir);
             if (level.getBlockState(adjacent).getBlock() instanceof AntennaBlock) {
@@ -80,11 +80,9 @@ public class RadioTransmitterBlockEntity extends BlockEntity {
         }
     }
 
-    /** Convenience: transmits the currently stored message. */
     public void transmit() {
         transmit(message);
     }
-
 
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
@@ -138,7 +136,6 @@ public class RadioTransmitterBlockEntity extends BlockEntity {
         }
     }
 
-    // Client-only fields for Morse playback
     private java.util.List<Boolean> morseTimeline = new java.util.ArrayList<>();
     private int timelineIndex = -1;
     private float currentLeverRotation = 0f;
@@ -151,12 +148,12 @@ public class RadioTransmitterBlockEntity extends BlockEntity {
     public void startMorsePlayback() {
         morseTimeline.clear();
         timelineIndex = 0;
-        
+
         String msg = this.message;
         if (msg == null || msg.isEmpty()) {
             msg = "signal";
         }
-        
+
         for (int i = 0; i < msg.length(); i++) {
             char c = Character.toLowerCase(msg.charAt(i));
             String morse = getMorseCode(c);
@@ -171,9 +168,9 @@ public class RadioTransmitterBlockEntity extends BlockEntity {
                         for (int k = 0; k < 3; k++) morseTimeline.add(false);
                     }
                 }
-                for (int k = 0; k < 3; k++) morseTimeline.add(false); // letter gap
+                for (int k = 0; k < 3; k++) morseTimeline.add(false);
             } else if (c == ' ') {
-                for (int k = 0; k < 9; k++) morseTimeline.add(false); // word gap
+                for (int k = 0; k < 9; k++) morseTimeline.add(false);
             }
         }
     }

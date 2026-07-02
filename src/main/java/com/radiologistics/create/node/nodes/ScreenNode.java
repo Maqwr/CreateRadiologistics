@@ -9,9 +9,14 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import java.util.*;
 
 public class ScreenNode extends AlgoNode {
+    private int screenIndex = 0;
+
     public ScreenNode(String id, double x, double y) {
         super(id, x, y);
     }
+
+    public int getScreenIndex() { return screenIndex; }
+    public void setScreenIndex(int index) { this.screenIndex = index; }
 
     @Override
     public String getType() { return "screen"; }
@@ -23,10 +28,20 @@ public class ScreenNode extends AlgoNode {
     public List<String> getOutputPorts() { return Collections.emptyList(); }
 
     @Override
-    public CompoundTag saveProperties() { return new CompoundTag(); }
+    public CompoundTag saveProperties() {
+        CompoundTag tag = new CompoundTag();
+        tag.putInt("screenIndex", screenIndex);
+        return tag;
+    }
 
     @Override
-    public void loadProperties(CompoundTag tag) {}
+    public void loadProperties(CompoundTag tag) {
+        if (tag.contains("screenIndex")) {
+            screenIndex = tag.getInt("screenIndex");
+        } else {
+            screenIndex = 0;
+        }
+    }
 
     @Override
     public Object evaluate(String outputPort, Map<String, Object> inputValues, EvaluationContext context) {
@@ -34,7 +49,7 @@ public class ScreenNode extends AlgoNode {
         String gizmosJson = (val != null) ? String.valueOf(val) : "[]";
 
         if (context.getComputer() != null && context.getLevel() != null && !context.getLevel().isClientSide()) {
-            BlockPos screenPos = context.getComputer().getModulePos("screen");
+            BlockPos screenPos = context.getComputer().getModulePos("screen_" + screenIndex);
             if (screenPos != null) {
                 BlockEntity be = com.radiologistics.create.block.MainComputerBlockEntity.resolveBlockEntity(context.getLevel(), screenPos);
                 if (be instanceof ScreenBlockEntity screen) {

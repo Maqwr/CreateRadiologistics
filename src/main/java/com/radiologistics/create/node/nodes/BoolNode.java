@@ -6,7 +6,6 @@ import net.minecraft.nbt.CompoundTag;
 
 import java.util.*;
 
-/** A constant true/false value node. Clicking the node body toggles the value inline. */
 public class BoolNode extends AlgoNode {
     private boolean value = false;
 

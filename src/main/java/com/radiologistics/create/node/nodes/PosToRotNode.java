@@ -46,6 +46,7 @@ public class PosToRotNode extends AlgoNode {
 
         if (outputPort.equals("yaw")) {
             double yaw = Math.toDegrees(Math.atan2(-dx, dz));
+            yaw = Math.round(yaw * 1000000.0) / 1000000.0;
             if (yaw == Math.floor(yaw) && !Double.isInfinite(yaw)) {
                 return (long) yaw;
             }
@@ -53,6 +54,7 @@ public class PosToRotNode extends AlgoNode {
         } else if (outputPort.equals("pitch")) {
             double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
             double pitch = Math.toDegrees(Math.atan2(-dy, horizontalDistance));
+            pitch = Math.round(pitch * 1000000.0) / 1000000.0;
             if (pitch == Math.floor(pitch) && !Double.isInfinite(pitch)) {
                 return (long) pitch;
             }

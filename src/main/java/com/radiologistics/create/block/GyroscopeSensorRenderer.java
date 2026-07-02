@@ -22,10 +22,8 @@ public class GyroscopeSensorRenderer implements BlockEntityRenderer<GyroscopeSen
     public void render(GyroscopeSensorBlockEntity be, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int combinedLight, int combinedOverlay) {
         poseStack.pushPose();
 
-        // Translate to pivot point of the gyro [8, 6, 8]
         poseStack.translate(8f / 16f, 6f / 16f, 8f / 16f);
 
-        // Orient based on the block's facing direction
         BlockState state = be.getBlockState();
         if (state.hasProperty(GyroscopeSensorBlock.FACING)) {
             Direction facing = state.getValue(GyroscopeSensorBlock.FACING);
@@ -33,7 +31,6 @@ public class GyroscopeSensorRenderer implements BlockEntityRenderer<GyroscopeSen
             poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(yRot));
         }
 
-        // Apply dynamic Pitch and Yaw rotations
         float[] rot = be.getContraptionRotation();
         float pitchX = rot[0];
         float pitchZ = rot[1];
@@ -43,13 +40,11 @@ public class GyroscopeSensorRenderer implements BlockEntityRenderer<GyroscopeSen
         poseStack.mulPose(com.mojang.math.Axis.XP.rotationDegrees(pitchX));
         poseStack.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(pitchZ));
 
-        // Translate back
         poseStack.translate(-8f / 16f, -6f / 16f, -8f / 16f);
 
-        // Render model
         BakedModel model = Minecraft.getInstance().getModelManager().getModel(GYRO_MODEL);
         VertexConsumer consumer = buffer.getBuffer(RenderType.cutout());
-        
+
         Minecraft.getInstance().getBlockRenderer().getModelRenderer().renderModel(
             poseStack.last(),
             consumer,

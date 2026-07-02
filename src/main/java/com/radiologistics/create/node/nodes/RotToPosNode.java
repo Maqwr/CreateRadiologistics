@@ -49,18 +49,21 @@ public class RotToPosNode extends AlgoNode {
 
         if (outputPort.equals("x_out")) {
             double resX = x + dx;
+            resX = Math.round(resX * 1000000.0) / 1000000.0;
             if (resX == Math.floor(resX) && !Double.isInfinite(resX)) {
                 return (long) resX;
             }
             return resX;
         } else if (outputPort.equals("y_out")) {
             double resY = y + dy;
+            resY = Math.round(resY * 1000000.0) / 1000000.0;
             if (resY == Math.floor(resY) && !Double.isInfinite(resY)) {
                 return (long) resY;
             }
             return resY;
         } else if (outputPort.equals("z_out")) {
             double resZ = z + dz;
+            resZ = Math.round(resZ * 1000000.0) / 1000000.0;
             if (resZ == Math.floor(resZ) && !Double.isInfinite(resZ)) {
                 return (long) resZ;
             }

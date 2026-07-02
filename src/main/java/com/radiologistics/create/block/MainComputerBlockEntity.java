@@ -5,6 +5,9 @@ import com.radiologistics.create.node.AlgoNode;
 import com.radiologistics.create.node.NodeGraph;
 import com.radiologistics.create.node.nodes.*;
 import com.radiologistics.create.radio.RadioNetworkManager;
+import com.radiologistics.create.item.PilotHelmetItem;
+import com.radiologistics.create.network.SyncHelmetGizmosPacket;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -32,6 +35,9 @@ public class MainComputerBlockEntity extends BlockEntity {
     private double cachedTargetY = 0.0;
     private double cachedTargetZ = 0.0;
     private String cachedTargetName = "";
+    private int cachedTracksCount = 0;
+    private final List<com.radiologistics.create.compat.RadarIntegration.TargetInfo> cachedTargets = new ArrayList<>();
+    public List<com.radiologistics.create.compat.RadarIntegration.TargetInfo> getCachedTargets() { return cachedTargets; }
     private int jammedMaxChannel = 0;
     private final List<int[]> activeJammedRanges = new ArrayList<>();
     private String displayLinkText = "";
@@ -61,7 +67,6 @@ public class MainComputerBlockEntity extends BlockEntity {
     private final Set<Long> forcedChunks = new HashSet<>();
     private ResourceKey<Level> forcedLevelKey = null;
 
-    /** Diagnostic helper — used by shutdown logging in Radiologistics.java */
     public int getForcedChunksCount() { return forcedChunks.size(); }
 
     public void releaseAllForcedChunks() {
@@ -70,10 +75,7 @@ public class MainComputerBlockEntity extends BlockEntity {
             forcedLevelKey = null;
             return;
         }
-        // During shutdown the ChunkHolders are already being deallocated;
-        // calling setChunkForced() at that point causes a NullPointerException
-        // in ChunkMap.acquireGeneration which crashes the save sequence.
-        // If the server is stopping or already stopped, just clear our bookkeeping.
+
         net.minecraft.server.MinecraftServer mcServer = level != null ? level.getServer() : null;
         if (com.radiologistics.create.Radiologistics.isServerStopping
                 || level == null || level.isClientSide()
@@ -86,14 +88,12 @@ public class MainComputerBlockEntity extends BlockEntity {
             net.minecraft.server.level.ServerLevel serverLevel = null;
             if (level instanceof net.minecraft.server.level.ServerLevel sl) {
                 serverLevel = sl;
-            } else {
+            } else if (isSableSubLevel(level)) {
                 Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-                if (subLevelClass.isInstance(level)) {
-                    java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
-                    net.minecraft.world.level.Level parentLevel = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
-                    if (parentLevel instanceof net.minecraft.server.level.ServerLevel sl) {
-                        serverLevel = sl;
-                    }
+                java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
+                net.minecraft.world.level.Level parentLevel = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
+                if (parentLevel instanceof net.minecraft.server.level.ServerLevel sl) {
+                    serverLevel = sl;
                 }
             }
             if (serverLevel != null && serverLevel.getServer() != null && serverLevel.getServer().isRunning()) {
@@ -107,9 +107,7 @@ public class MainComputerBlockEntity extends BlockEntity {
                     }
                 }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception ignored) {}
         forcedChunks.clear();
         forcedLevelKey = null;
     }
@@ -117,20 +115,20 @@ public class MainComputerBlockEntity extends BlockEntity {
     private void updateForcedChunks(Set<Long> targets, net.minecraft.server.level.ServerLevel targetLevel) {
         if (level == null || level.isClientSide()) return;
         net.minecraft.server.MinecraftServer mcServer = level.getServer();
-        if (com.radiologistics.create.Radiologistics.isServerStopping 
+        if (com.radiologistics.create.Radiologistics.isServerStopping
                 || (mcServer != null && !mcServer.isRunning())) {
             forcedChunks.clear();
             forcedLevelKey = null;
             return;
         }
         ResourceKey<Level> targetDim = targetLevel.dimension();
-        
+
         if (forcedLevelKey != null && !forcedLevelKey.equals(targetDim)) {
             releaseAllForcedChunks();
         }
-        
+
         forcedLevelKey = targetDim;
-        
+
         for (long chunkPosLong : new ArrayList<>(forcedChunks)) {
             if (!targets.contains(chunkPosLong)) {
                 int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
@@ -139,7 +137,7 @@ public class MainComputerBlockEntity extends BlockEntity {
                 forcedChunks.remove(chunkPosLong);
             }
         }
-        
+
         for (long chunkPosLong : targets) {
             if (!forcedChunks.contains(chunkPosLong)) {
                 int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
@@ -226,6 +224,13 @@ public class MainComputerBlockEntity extends BlockEntity {
     public double getCachedTargetY() { return cachedTargetY; }
     public double getCachedTargetZ() { return cachedTargetZ; }
     public String getCachedTargetName() { return cachedTargetName; }
+    public int getCachedTracksCount() { return cachedTracksCount; }
+
+    public void setCachedTargetX(double val) { this.cachedTargetX = val; }
+    public void setCachedTargetY(double val) { this.cachedTargetY = val; }
+    public void setCachedTargetZ(double val) { this.cachedTargetZ = val; }
+    public void setCachedTargetName(String val) { this.cachedTargetName = val; }
+    public void setCachedTracksCount(int val) { this.cachedTracksCount = val; }
 
     public MainComputerBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.MAIN_COMPUTER.get(), pos, state);
@@ -254,12 +259,74 @@ public class MainComputerBlockEntity extends BlockEntity {
             return true;
         }
 
+        if (type.equals("servo_motor")) {
+            for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+                if (entry.getKey().startsWith("servo_motor_") && entry.getValue().equals(pos)) {
+                    return true;
+                }
+            }
+            int index = 0;
+            while (linkedModules.containsKey("servo_motor_" + index)) {
+                index++;
+            }
+            linkedModules.put("servo_motor_" + index, pos);
+            setChanged();
+            if (level != null && !level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                updateListeners();
+                evaluateGraph();
+            }
+            return true;
+        }
+
+        if (type.equals("gyroscope")) {
+            for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+                if (entry.getKey().startsWith("gyroscope_") && entry.getValue().equals(pos)) {
+                    return true;
+                }
+            }
+            int index = 0;
+            while (linkedModules.containsKey("gyroscope_" + index)) {
+                index++;
+            }
+            linkedModules.put("gyroscope_" + index, pos);
+            setChanged();
+            if (level != null && !level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                evaluateGraph();
+            }
+            return true;
+        }
+
+        if (type.equals("screen")) {
+            for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+                if (entry.getKey().startsWith("screen_") && entry.getValue().equals(pos)) {
+                    return true;
+                }
+            }
+            int index = 0;
+            while (linkedModules.containsKey("screen_" + index)) {
+                index++;
+            }
+            linkedModules.put("screen_" + index, pos);
+            setChanged();
+            if (level != null && !level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                updateListeners();
+                trackCassette();
+                evaluateGraph();
+            }
+            return true;
+        }
+
         if (linkedModules.containsKey(type)) {
             BlockPos oldPos = linkedModules.get(type);
-            if (level != null && level.hasChunkAt(oldPos)) {
-                net.minecraft.world.level.block.state.BlockState oldState = level.getBlockState(oldPos);
-                if (oldState.getBlock() instanceof BaseModuleBlock b && b.getModuleType().equals(type)) {
-                    return false;
+            if (!pos.equals(oldPos)) {
+                if (level != null && level.hasChunkAt(oldPos)) {
+                    net.minecraft.world.level.block.state.BlockState oldState = level.getBlockState(oldPos);
+                    if (oldState.getBlock() instanceof BaseModuleBlock b && b.getModuleType().equals(type)) {
+                        return false;
+                    }
                 }
             }
         }
@@ -267,7 +334,7 @@ public class MainComputerBlockEntity extends BlockEntity {
         setChanged();
         if (level != null && !level.isClientSide()) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-            updateListeners(); // Update listeners when module is linked
+            updateListeners();
             if (type.equals("screen")) {
                 trackCassette();
             }
@@ -281,7 +348,7 @@ public class MainComputerBlockEntity extends BlockEntity {
         if (oldPos != null) {
             if (level != null && !level.isClientSide()) {
                 BlockEntity moduleBE = resolveBlockEntity(level, oldPos);
-                if (moduleBE instanceof BaseModuleBlockEntity module) {
+                if (moduleBE instanceof IComputerLinkable module) {
                     if (worldPosition.equals(module.getComputerPos())) {
                         module.setComputerPos(null);
                         if (module instanceof ScreenBlockEntity screen) {
@@ -295,7 +362,7 @@ public class MainComputerBlockEntity extends BlockEntity {
             setChanged();
             if (level != null && !level.isClientSide()) {
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-                updateListeners(); // Update listeners when module is unlinked
+                updateListeners();
                 if (type.equals("screen")) {
                     trackCassette();
                 }
@@ -323,6 +390,85 @@ public class MainComputerBlockEntity extends BlockEntity {
             }
             return;
         }
+        if (type.equals("servo_motor")) {
+            String keyToRemove = null;
+            for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+                if (entry.getKey().startsWith("servo_motor_") && entry.getValue().equals(pos)) {
+                    keyToRemove = entry.getKey();
+                    break;
+                }
+            }
+            if (keyToRemove != null) {
+                linkedModules.remove(keyToRemove);
+                setChanged();
+                if (level != null && !level.isClientSide()) {
+                    level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                    updateListeners();
+                    evaluateGraph();
+                }
+            }
+            return;
+        }
+        if (type.equals("gyroscope")) {
+            String keyToRemove = null;
+            for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+                if (entry.getKey().startsWith("gyroscope_") && entry.getValue().equals(pos)) {
+                    keyToRemove = entry.getKey();
+                    break;
+                }
+            }
+            if (keyToRemove != null) {
+                linkedModules.remove(keyToRemove);
+                if (level != null && !level.isClientSide()) {
+                    BlockEntity moduleBE = resolveBlockEntity(level, pos);
+                    if (moduleBE instanceof GyroscopeSensorBlockEntity gyro) {
+                        if (worldPosition.equals(gyro.getComputerPos())) {
+                            gyro.setComputerPos(null);
+                            gyro.setChanged();
+                            level.sendBlockUpdated(pos, moduleBE.getBlockState(), moduleBE.getBlockState(), 3);
+                        }
+                    }
+                }
+                setChanged();
+                if (level != null && !level.isClientSide()) {
+                    level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                    updateListeners();
+                    evaluateGraph();
+                }
+            }
+            return;
+        }
+        if (type.equals("screen")) {
+            String keyToRemove = null;
+            for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+                if (entry.getKey().startsWith("screen_") && entry.getValue().equals(pos)) {
+                    keyToRemove = entry.getKey();
+                    break;
+                }
+            }
+            if (keyToRemove != null) {
+                linkedModules.remove(keyToRemove);
+                if (level != null && !level.isClientSide()) {
+                    BlockEntity moduleBE = resolveBlockEntity(level, pos);
+                    if (moduleBE instanceof ScreenBlockEntity screen) {
+                        if (worldPosition.equals(screen.getComputerPos())) {
+                            screen.setComputerPos(null);
+                            screen.setGizmosJson("[]");
+                            screen.setChanged();
+                            level.sendBlockUpdated(pos, moduleBE.getBlockState(), moduleBE.getBlockState(), 3);
+                        }
+                    }
+                }
+                setChanged();
+                if (level != null && !level.isClientSide()) {
+                    level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                    updateListeners();
+                    trackCassette();
+                    evaluateGraph();
+                }
+            }
+            return;
+        }
         unlinkModule(type);
     }
 
@@ -330,13 +476,22 @@ public class MainComputerBlockEntity extends BlockEntity {
         if (type.equals("jammer")) {
             return !getJammers().isEmpty();
         }
+        if (type.equals("servo_motor")) {
+            return !getServos().isEmpty();
+        }
+        if (type.equals("gyroscope")) {
+            return !getGyroscopes().isEmpty();
+        }
+        if (type.equals("screen")) {
+            return !getScreens().isEmpty();
+        }
         if (type.equals("cassette_reader")) {
             return !getCassette().isEmpty();
         }
 
         BlockPos pos = linkedModules.get(type);
         if (pos == null) return false;
-        
+
         BlockEntity be = resolveBlockEntity(level, pos);
         if (type.equals("network_controller")) {
             if (be != null && be.getClass().getName().equals("com.happysg.radar.block.controller.networkcontroller.NetworkFiltererBlockEntity")) {
@@ -351,9 +506,12 @@ public class MainComputerBlockEntity extends BlockEntity {
             return false;
         }
 
-        if (be instanceof BaseModuleBlockEntity module) {
+        if (be instanceof IComputerLinkable module) {
             net.minecraft.world.level.block.state.BlockState state = be.getBlockState();
             if (state.getBlock() instanceof BaseModuleBlock b && b.getModuleType().equals(type)) {
+                return true;
+            }
+            if (type.startsWith("servo_motor") && state.getBlock() instanceof ServoMotorBlock) {
                 return true;
             }
         }
@@ -366,11 +524,53 @@ public class MainComputerBlockEntity extends BlockEntity {
             if (entry.getKey().startsWith("jammer_")) {
                 BlockPos pos = entry.getValue();
                 BlockEntity be = resolveBlockEntity(level, pos);
-                if (be instanceof BaseModuleBlockEntity module) {
+                if (be instanceof IComputerLinkable module) {
                     net.minecraft.world.level.block.state.BlockState state = be.getBlockState();
                     if (state.getBlock() instanceof BaseModuleBlock b && b.getModuleType().equals("jammer")) {
                         list.add(pos);
                     }
+                }
+            }
+        }
+        return list;
+    }
+
+    public List<BlockPos> getServos() {
+        List<BlockPos> list = new ArrayList<>();
+        for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+            if (entry.getKey().startsWith("servo_motor_")) {
+                BlockPos pos = entry.getValue();
+                BlockEntity be = resolveBlockEntity(level, pos);
+                if (be instanceof ServoMotorBlockEntity) {
+                    list.add(pos);
+                }
+            }
+        }
+        return list;
+    }
+
+    public List<BlockPos> getGyroscopes() {
+        List<BlockPos> list = new ArrayList<>();
+        for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+            if (entry.getKey().startsWith("gyroscope_")) {
+                BlockPos pos = entry.getValue();
+                BlockEntity be = resolveBlockEntity(level, pos);
+                if (be instanceof GyroscopeSensorBlockEntity) {
+                    list.add(pos);
+                }
+            }
+        }
+        return list;
+    }
+
+    public List<BlockPos> getScreens() {
+        List<BlockPos> list = new ArrayList<>();
+        for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+            if (entry.getKey().startsWith("screen_")) {
+                BlockPos pos = entry.getValue();
+                BlockEntity be = resolveBlockEntity(level, pos);
+                if (be instanceof ScreenBlockEntity) {
+                    list.add(pos);
                 }
             }
         }
@@ -398,50 +598,135 @@ public class MainComputerBlockEntity extends BlockEntity {
         } catch (Throwable ignored) {}
     }
 
+    public static boolean isSableSubLevel(net.minecraft.world.level.Level level) {
+        return isSableObject(level);
+    }
+
+    public static net.minecraft.world.phys.Vec3 getWorldPos(net.minecraft.world.level.Level level, BlockPos pos) {
+        if (level == null || pos == null) return net.minecraft.world.phys.Vec3.ZERO;
+        BlockEntity be = resolveBlockEntity(level, pos);
+        net.minecraft.world.level.Level activeLevel = (be != null && be.getLevel() != null) ? be.getLevel() : level;
+        BlockPos activePos = (be != null) ? be.getBlockPos() : pos;
+        net.minecraft.world.phys.Vec3 vec = new net.minecraft.world.phys.Vec3(activePos.getX() + 0.5, activePos.getY() + 0.5, activePos.getZ() + 0.5);
+        try {
+            Class<?> companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
+            Object companion = companionClass.getField("INSTANCE").get(null);
+            java.lang.reflect.Method projectMethod = companionClass.getMethod("projectOutOfSubLevel", net.minecraft.world.level.Level.class, net.minecraft.world.phys.Vec3.class);
+            net.minecraft.world.phys.Vec3 projected = (net.minecraft.world.phys.Vec3) projectMethod.invoke(companion, activeLevel, vec);
+            if (projected != null) {
+                return projected;
+            }
+        } catch (Exception ignored) {}
+        return vec;
+    }
+
+    public static boolean isSableObject(Object obj) {
+        if (obj == null) return false;
+        initReflection();
+        if (subLevelClass != null && subLevelClass.isInstance(obj)) {
+            return true;
+        }
+
+        Class<?> curr = obj.getClass();
+        while (curr != null) {
+            String name = curr.getName();
+            if (name.equals("dev.ryanhcode.sable.sublevel.SubLevel")
+                || name.equals("dev.ryanhcode.sable.sublevel.ClientSubLevel")
+                || name.equals("dev.ryanhcode.sable.sublevel.ServerSubLevel")
+                || name.equals("dev.ryanhcode.sable.companion.SubLevelAccess")) {
+                return true;
+            }
+            curr = curr.getSuperclass();
+        }
+        return false;
+    }
+
+    private static long lastGyroResolveLogTime = 0;
+
     public static BlockEntity resolveBlockEntity(net.minecraft.world.level.Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
-        
-        // 1. Check local level first (if chunk is loaded)
-        if (level.hasChunkAt(pos)) {
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be != null) return be;
+
+        long now = System.currentTimeMillis();
+        boolean shouldLog = (now - lastGyroResolveLogTime > 5000);
+        if (shouldLog) {
+            lastGyroResolveLogTime = now;
+            com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: start. level=" + level.getClass().getName() + " pos=" + pos);
         }
-        
-        // 2. If server is stopping, bypass reflection/sublevel lookups
+
+        try {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (shouldLog) {
+                com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 1 (local) returned=" + (be != null ? be.getClass().getName() : "null"));
+            }
+            if (be != null) return be;
+        } catch (Throwable ignored) {
+            if (shouldLog) {
+                com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 1 threw exception");
+            }
+        }
+
         if (com.radiologistics.create.Radiologistics.isServerStopping) {
             return null;
         }
 
-        // 3. Initialize reflection
         initReflection();
 
-        // 4. Try sublevel parent check
-        if (subLevelClass != null && getLevelMethod != null && subLevelClass.isInstance(level)) {
+        if (getLevelMethod != null && isSableSubLevel(level)) {
             try {
                 net.minecraft.world.level.Level parentLevel = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
-                if (parentLevel != null && parentLevel.hasChunkAt(pos)) {
+                if (shouldLog) {
+                    com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 4 (parent) level=" + (parentLevel != null ? parentLevel.getClass().getName() : "null"));
+                }
+                if (parentLevel != null) {
                     BlockEntity be = parentLevel.getBlockEntity(pos);
+                    if (shouldLog) {
+                        com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 4 (parent) returned=" + (be != null ? be.getClass().getName() : "null"));
+                    }
                     if (be != null) return be;
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+                if (shouldLog) {
+                    com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 4 threw exception");
+                }
+            }
         }
 
-        // 5. Try SableCompanion containing check
         if (companionInstance != null && getContainingMethod != null) {
             try {
-                Object subLevelAccess = getContainingMethod.invoke(companionInstance, level, pos);
-                if (subLevelAccess instanceof net.minecraft.world.level.Level subLevel) {
-                    if (subLevel.hasChunkAt(pos)) {
-                        BlockEntity be = subLevel.getBlockEntity(pos);
-                        if (be != null) return be;
+                Object subLevel = getContainingMethod.invoke(companionInstance, level, pos);
+                if (shouldLog) {
+                    com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 5 (containing) subLevel=" + (subLevel != null ? subLevel.getClass().getName() : "null"));
+                }
+                if (subLevel != null) {
+                    try {
+                        Object plot = subLevel.getClass().getMethod("getPlot").invoke(subLevel);
+                        if (plot != null) {
+                            net.minecraft.world.level.ChunkPos chunkPos = new net.minecraft.world.level.ChunkPos(pos);
+                            java.lang.reflect.Method getChunkMethod = plot.getClass().getMethod("getChunk", net.minecraft.world.level.ChunkPos.class);
+                            net.minecraft.world.level.chunk.LevelChunk chunk = (net.minecraft.world.level.chunk.LevelChunk) getChunkMethod.invoke(plot, chunkPos);
+                            if (chunk != null) {
+                                BlockEntity be = chunk.getBlockEntity(pos);
+                                if (shouldLog) {
+                                    com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 5 (containing chunk) returned=" + (be != null ? be.getClass().getName() : "null"));
+                                }
+                                if (be != null) return be;
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                        if (shouldLog) {
+                            com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 5 (containing chunk) threw exception");
+                        }
                     }
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+                if (shouldLog) {
+                    com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG RESOLVE: step 5 threw exception");
+                }
+            }
         }
 
         return null;
     }
-
 
     public net.minecraft.world.item.ItemStack getCassette() {
         return cassette;
@@ -466,23 +751,23 @@ public class MainComputerBlockEntity extends BlockEntity {
         }
         trackedTvMocks.clear();
 
+        if (isSableSubLevel(level)) {
+            return;
+        }
+
         if (!cassette.isEmpty()) {
-            // 1. Track at computer position
+
             Object computerMock = com.radiologistics.create.compat.VistaIntegrationHelper.createMockTv(level, worldPosition, getBlockState(), cassette);
             if (computerMock != null) {
                 com.radiologistics.create.compat.VistaIntegrationHelper.trackTv(computerMock);
                 trackedTvMocks.add(computerMock);
             }
 
-            // 2. Track at screen position if connected
-            if (isModuleConnected("screen")) {
-                BlockPos screenPos = linkedModules.get("screen");
-                if (screenPos != null) {
-                    Object screenMock = com.radiologistics.create.compat.VistaIntegrationHelper.createMockTv(level, screenPos, getBlockState(), cassette);
-                    if (screenMock != null) {
-                        com.radiologistics.create.compat.VistaIntegrationHelper.trackTv(screenMock);
-                        trackedTvMocks.add(screenMock);
-                    }
+            for (BlockPos screenPos : getScreens()) {
+                Object screenMock = com.radiologistics.create.compat.VistaIntegrationHelper.createMockTv(level, screenPos, getBlockState(), cassette);
+                if (screenMock != null) {
+                    com.radiologistics.create.compat.VistaIntegrationHelper.trackTv(screenMock);
+                    trackedTvMocks.add(screenMock);
                 }
             }
         }
@@ -501,7 +786,7 @@ public class MainComputerBlockEntity extends BlockEntity {
 
     public java.util.Set<String> getConnectedModuleTypes() {
         java.util.Set<String> connected = new HashSet<>();
-        for (String type : new String[]{"redstone_link", "memory", "gyroscope", "antenna", "network_controller", "jammer", "audio", "screen", "cannon_mount"}) {
+        for (String type : new String[]{"redstone_link", "memory", "gyroscope", "antenna", "network_controller", "jammer", "audio", "screen", "cannon_mount", "servo_motor"}) {
             if (isModuleConnected(type)) {
                 connected.add(type);
             }
@@ -513,7 +798,8 @@ public class MainComputerBlockEntity extends BlockEntity {
             connected.add("display_link");
         }
         for (String key : linkedModules.keySet()) {
-            if (key.startsWith("display_board_") || key.startsWith("jammer_")) {
+            if (key.startsWith("display_board_") || key.startsWith("jammer_") || key.startsWith("servo_motor_")
+                || key.startsWith("gyroscope_") || key.startsWith("screen_")) {
                 connected.add(key);
             }
         }
@@ -599,6 +885,14 @@ public class MainComputerBlockEntity extends BlockEntity {
     }
 
     public BlockPos getModulePos(String type) {
+        if (type.equals("gyroscope")) {
+            List<BlockPos> list = getGyroscopes();
+            return list.isEmpty() ? null : list.get(0);
+        }
+        if (type.equals("screen")) {
+            List<BlockPos> list = getScreens();
+            return list.isEmpty() ? null : list.get(0);
+        }
         if (type.equals("jammer")) {
             for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
                 if (entry.getKey().startsWith("jammer_")) {
@@ -607,7 +901,15 @@ public class MainComputerBlockEntity extends BlockEntity {
             }
             return null;
         }
-        if (isModuleConnected(type)) {
+        if (type.equals("servo_motor")) {
+            for (Map.Entry<String, BlockPos> entry : linkedModules.entrySet()) {
+                if (entry.getKey().startsWith("servo_motor_")) {
+                    return entry.getValue();
+                }
+            }
+            return null;
+        }
+        if (linkedModules.containsKey(type)) {
             return linkedModules.get(type);
         }
         return null;
@@ -631,6 +933,9 @@ public class MainComputerBlockEntity extends BlockEntity {
             updateListeners();
             trackCassette();
             evaluateGraph();
+            if (!forcedChunks.isEmpty()) {
+                releaseAllForcedChunks();
+            }
         }
     }
 
@@ -639,6 +944,12 @@ public class MainComputerBlockEntity extends BlockEntity {
         super.setRemoved();
         RadioNetworkManager.activeComputers.remove(this);
         if (level != null && !level.isClientSide()) {
+            if (com.radiologistics.create.Radiologistics.isServerStopping) {
+                untrackCassette();
+                forcedChunks.clear();
+                forcedLevelKey = null;
+                return;
+            }
             untrackCassette();
             releaseAllForcedChunks();
             for (VirtualLinkable linkable : activeLinkables.values()) {
@@ -650,10 +961,9 @@ public class MainComputerBlockEntity extends BlockEntity {
             }
             registeredChannels.clear();
 
-            // Disconnect all linked modules when computer is broken or removed
             for (BlockPos modulePos : new ArrayList<>(linkedModules.values())) {
                 BlockEntity moduleBE = resolveBlockEntity(level, modulePos);
-                if (moduleBE instanceof BaseModuleBlockEntity module) {
+                if (moduleBE instanceof IComputerLinkable module) {
                     if (worldPosition.equals(module.getComputerPos())) {
                         module.setComputerPos(null);
                         if (module instanceof ScreenBlockEntity screen) {
@@ -677,7 +987,7 @@ public class MainComputerBlockEntity extends BlockEntity {
                 || (mcServer != null && !mcServer.isRunning());
 
         if (serverStopping) {
-            // During shutdown ChunkHolders may already be null — just discard bookkeeping.
+
             trackedTvMocks.clear();
             forcedChunks.clear();
             forcedLevelKey = null;
@@ -686,24 +996,25 @@ public class MainComputerBlockEntity extends BlockEntity {
 
         untrackCassette();
 
-        // Release forced chunks synchronously on the server tick thread (we are already on it).
         if (level != null && !level.isClientSide() && !forcedChunks.isEmpty() && forcedLevelKey != null) {
-            try {
-                net.minecraft.server.level.ServerLevel serverLevel = null;
-                if (level instanceof net.minecraft.server.level.ServerLevel sl) {
-                    serverLevel = sl;
-                }
-                if (serverLevel != null) {
-                    net.minecraft.server.level.ServerLevel targetLevel = serverLevel.getServer().getLevel(forcedLevelKey);
-                    if (targetLevel != null) {
-                        for (long chunkPosLong : new java.util.ArrayList<>(forcedChunks)) {
-                            int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
-                            int cz = net.minecraft.world.level.ChunkPos.getZ(chunkPosLong);
-                            try { targetLevel.setChunkForced(cx, cz, false); } catch (Throwable ignored) {}
-                        }
-                    }
-                }
-            } catch (Exception ignored) {}
+            final net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> levelKey = forcedLevelKey;
+            final java.util.List<Long> chunksToRelease = new java.util.ArrayList<>(forcedChunks);
+            if (mcServer != null) {
+                try {
+                    mcServer.execute(() -> {
+                        try {
+                            net.minecraft.server.level.ServerLevel targetLevel = mcServer.getLevel(levelKey);
+                            if (targetLevel != null) {
+                                for (long chunkPosLong : chunksToRelease) {
+                                    int cx = net.minecraft.world.level.ChunkPos.getX(chunkPosLong);
+                                    int cz = net.minecraft.world.level.ChunkPos.getZ(chunkPosLong);
+                                    try { targetLevel.setChunkForced(cx, cz, false); } catch (Throwable ignored) {}
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    });
+                } catch (Throwable ignored) {}
+            }
         }
 
         forcedChunks.clear();
@@ -742,7 +1053,7 @@ public class MainComputerBlockEntity extends BlockEntity {
 
         for (AlgoNode node : graph.getNodes().values()) {
             if (node instanceof SignalNode sigNode) {
-                // Try to find the channel from a connected Node (static/inline wiring)
+
                 String ch = null;
                 for (com.radiologistics.create.node.NodeGraph.NodeLink link : graph.getLinks()) {
                     if (link.toNode().equals(sigNode.getId()) && link.toPort().equals("channel")) {
@@ -797,7 +1108,6 @@ public class MainComputerBlockEntity extends BlockEntity {
             }
         }
 
-        // Update transmitting linkables
         if (isModuleConnected("redstone_link")) {
             for (AlgoNode node : graph.getNodes().values()) {
                 if (node instanceof LinkOutputNode lon) {
@@ -837,6 +1147,44 @@ public class MainComputerBlockEntity extends BlockEntity {
         }
 
         updateRedstoneOutputs(newOutputs);
+
+        boolean hasScreenNode = false;
+        boolean hasHelmetScreenNode = false;
+        for (AlgoNode node : graph.getNodes().values()) {
+            if (node instanceof ScreenNode) {
+                hasScreenNode = true;
+            } else if (node instanceof HelmetScreenNode) {
+                hasHelmetScreenNode = true;
+            }
+        }
+
+        if (!hasScreenNode && isModuleConnected("screen")) {
+            BlockPos screenPos = getModulePos("screen");
+            if (screenPos != null) {
+                BlockEntity be = resolveBlockEntity(level, screenPos);
+                if (be instanceof ScreenBlockEntity screen) {
+                    screen.setGizmosJson("[]");
+                }
+            }
+        }
+
+        if (!hasHelmetScreenNode) {
+            net.minecraft.server.MinecraftServer server = level.getServer();
+            if (server != null) {
+                for (net.minecraft.server.level.ServerPlayer p : server.getPlayerList().getPlayers()) {
+                    net.minecraft.world.item.ItemStack head = p.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD);
+                    if (head.getItem() instanceof PilotHelmetItem) {
+                        net.minecraft.world.item.component.CustomData customData = head.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                        if (customData != null) {
+                            CompoundTag tag = customData.copyTag();
+                            if (tag.contains("LinkedComputer") && BlockPos.of(tag.getLong("LinkedComputer")).equals(worldPosition)) {
+                                PacketDistributor.sendToPlayer(p, new SyncHelmetGizmosPacket(worldPosition, "[]"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void updateRedstoneOutputs(Map<Direction, Integer> newOutputs) {
@@ -854,9 +1202,9 @@ public class MainComputerBlockEntity extends BlockEntity {
         if (changed) {
             setChanged();
             if (level != null) {
-                // Notify the immediate neighbors adjacent to the computer pos
+
                 level.updateNeighborsAt(worldPosition, getBlockState().getBlock());
-                // Notify the secondary neighbors of the changed direction
+
                 for (Direction dir : changedDirs) {
                     level.updateNeighborsAt(worldPosition.relative(dir), getBlockState().getBlock());
                 }
@@ -887,7 +1235,7 @@ public class MainComputerBlockEntity extends BlockEntity {
         if (!cassette.isEmpty()) {
             tag.put("cassette", cassette.save(registries));
         }
-        
+
         CompoundTag outputsTag = new CompoundTag();
         for (Direction dir : Direction.values()) {
             outputsTag.putInt(dir.name(), redstoneOutputs.getOrDefault(dir, 0));
@@ -909,6 +1257,17 @@ public class MainComputerBlockEntity extends BlockEntity {
         tag.putDouble("cachedTargetY", cachedTargetY);
         tag.putDouble("cachedTargetZ", cachedTargetZ);
         tag.putString("cachedTargetName", cachedTargetName);
+        tag.putInt("cachedTracksCount", cachedTracksCount);
+        net.minecraft.nbt.ListTag targetsTag = new net.minecraft.nbt.ListTag();
+        for (com.radiologistics.create.compat.RadarIntegration.TargetInfo target : cachedTargets) {
+            CompoundTag tTag = new CompoundTag();
+            tTag.putDouble("x", target.x());
+            tTag.putDouble("y", target.y());
+            tTag.putDouble("z", target.z());
+            tTag.putString("name", target.name());
+            targetsTag.add(tTag);
+        }
+        tag.put("cachedTargets", targetsTag);
         tag.putInt("jammedMaxChannel", jammedMaxChannel);
         tag.putString("displayLinkText", displayLinkText);
         tag.putLong("lastDisplayLinkUpdate", lastDisplayLinkUpdate);
@@ -939,7 +1298,7 @@ public class MainComputerBlockEntity extends BlockEntity {
         } else {
             this.cassette = net.minecraft.world.item.ItemStack.EMPTY;
         }
-        
+
         if (tag.contains("outputs")) {
             CompoundTag outputsTag = tag.getCompound("outputs");
             for (Direction dir : Direction.values()) {
@@ -969,6 +1328,20 @@ public class MainComputerBlockEntity extends BlockEntity {
         cachedTargetY = tag.getDouble("cachedTargetY");
         cachedTargetZ = tag.getDouble("cachedTargetZ");
         cachedTargetName = tag.getString("cachedTargetName");
+        cachedTracksCount = tag.getInt("cachedTracksCount");
+        cachedTargets.clear();
+        if (tag.contains("cachedTargets", net.minecraft.nbt.Tag.TAG_LIST)) {
+            net.minecraft.nbt.ListTag targetsTag = tag.getList("cachedTargets", net.minecraft.nbt.Tag.TAG_COMPOUND);
+            for (int i = 0; i < targetsTag.size(); i++) {
+                CompoundTag tTag = targetsTag.getCompound(i);
+                cachedTargets.add(new com.radiologistics.create.compat.RadarIntegration.TargetInfo(
+                    tTag.getDouble("x"),
+                    tTag.getDouble("y"),
+                    tTag.getDouble("z"),
+                    tTag.getString("name")
+                ));
+            }
+        }
         jammedMaxChannel = tag.getInt("jammedMaxChannel");
         displayLinkText = tag.getString("displayLinkText");
         lastDisplayLinkUpdate = tag.getLong("lastDisplayLinkUpdate");
@@ -1017,13 +1390,49 @@ public class MainComputerBlockEntity extends BlockEntity {
         return tag;
     }
 
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection connection, net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket packet, HolderLookup.Provider lookupProvider) {
+        CompoundTag tag = packet.getTag();
+        if (tag != null) {
+            loadAdditional(tag, lookupProvider);
+        }
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+        loadAdditional(tag, lookupProvider);
+    }
+
     public void tick() {
         if (level != null && !level.isClientSide()) {
             if (level instanceof net.minecraft.server.level.ServerLevel sl && !sl.getServer().isRunning()) {
                 return;
             }
             updateCachedTarget();
-            
+
+            if (level.getGameTime() % 10 == 0) {
+                net.minecraft.world.phys.Vec3 computerWorldPos = getWorldPos(level, worldPosition);
+                List<Map.Entry<String, BlockPos>> toUnlink = new ArrayList<>();
+                for (Map.Entry<String, BlockPos> entry : new ArrayList<>(linkedModules.entrySet())) {
+                    BlockPos mPos = entry.getValue();
+                    net.minecraft.world.phys.Vec3 moduleWorldPos = getWorldPos(level, mPos);
+                    if (computerWorldPos.distanceToSqr(moduleWorldPos) > 100.0) {
+                        toUnlink.add(entry);
+                    }
+                }
+                for (Map.Entry<String, BlockPos> entry : toUnlink) {
+                    if (entry.getKey().startsWith("jammer_")) {
+                        unlinkModule("jammer", entry.getValue());
+                    } else {
+                        unlinkModule(entry.getKey());
+                    }
+                }
+            }
+
+            if (level.getGameTime() % 40 == 0) {
+                com.radiologistics.create.Radiologistics.LOGGER.info("DEBUG COMPUTER: pos=" + worldPosition + " linkedModules=" + linkedModules);
+            }
+
             boolean wasConnected = isModuleConnected("jammer");
             int wasJammersCount = getJammers().size();
             List<int[]> wasRanges = new ArrayList<>();
@@ -1037,49 +1446,17 @@ public class MainComputerBlockEntity extends BlockEntity {
             int nowJammersCount = getJammers().size();
             List<int[]> nowRanges = activeJammedRanges;
 
-            boolean changed = (wasConnected != nowConnected) 
+            boolean changed = (wasConnected != nowConnected)
                     || (wasJammersCount != nowJammersCount)
                     || !rangesEqual(wasRanges, nowRanges);
 
             if (changed) {
                 com.radiologistics.create.radio.RadioNetworkManager.updateAllRedstoneLinks(level);
             }
-            
             if (level.getGameTime() % 20 == 0) {
-                try {
-                    Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-                    if (subLevelClass.isInstance(level)) {
-                        java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
-                        net.minecraft.world.level.Level parentLevel = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
-                        if (parentLevel instanceof net.minecraft.server.level.ServerLevel serverParentLevel) {
-                            Set<Long> targets = new HashSet<>();
-                            Class<?> companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
-                            Object companion = companionClass.getField("INSTANCE").get(null);
-                            java.lang.reflect.Method projectMethod = companionClass.getMethod("projectOutOfSubLevel", net.minecraft.world.level.Level.class, net.minecraft.world.phys.Vec3.class);
-                            net.minecraft.world.phys.Vec3 projected = (net.minecraft.world.phys.Vec3) projectMethod.invoke(companion, level, new net.minecraft.world.phys.Vec3(worldPosition.getX() + 0.5, worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5));
-                            if (projected != null) {
-                                int pX = ((int) Math.floor(projected.x)) >> 4;
-                                int pZ = ((int) Math.floor(projected.z)) >> 4;
-                                // Force a 3x3 chunk grid around the ship's parent-world position
-                                for (int dx = -1; dx <= 1; dx++) {
-                                    for (int dz = -1; dz <= 1; dz++) {
-                                        targets.add(net.minecraft.world.level.ChunkPos.asLong(pX + dx, pZ + dz));
-                                    }
-                                }
-                            }
-                            updateForcedChunks(targets, serverParentLevel);
-                            return;
-                        }
-                    }
 
-                } catch (Exception ignored) {}
-                
-                if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                    Set<Long> targets = new HashSet<>();
-                    int cx = worldPosition.getX() >> 4;
-                    int cz = worldPosition.getZ() >> 4;
-                    targets.add(net.minecraft.world.level.ChunkPos.asLong(cx, cz));
-                    updateForcedChunks(targets, serverLevel);
+                if (!forcedChunks.isEmpty()) {
+                    releaseAllForcedChunks();
                 }
             }
         }
@@ -1093,42 +1470,80 @@ public class MainComputerBlockEntity extends BlockEntity {
             if (be != null && net.neoforged.fml.ModList.get().isLoaded("create_radar")) {
                 try {
                     Class<?> integrationClass = Class.forName("com.radiologistics.create.compat.RadarIntegration");
-                    java.lang.reflect.Method getTargetInfoMethod = integrationClass.getMethod("getTargetInfo", BlockEntity.class);
-                    Object info = getTargetInfoMethod.invoke(null, be);
+                    java.lang.reflect.Method getDetectedTargetsMethod = integrationClass.getMethod("getDetectedTargets", BlockEntity.class);
+                    List<?> targets = (List<?>) getDetectedTargetsMethod.invoke(null, be);
+
+                    int count = targets.size();
                     double tx = 0.0;
                     double ty = 0.0;
                     double tz = 0.0;
                     String tname = "";
-                    if (info != null) {
-                        tx = (double) info.getClass().getMethod("x").invoke(info);
-                        ty = (double) info.getClass().getMethod("y").invoke(info);
-                        tz = (double) info.getClass().getMethod("z").invoke(info);
-                        tname = (String) info.getClass().getMethod("name").invoke(info);
+
+                    if (count > 0) {
+                        Object first = targets.get(0);
+                        tx = (double) first.getClass().getMethod("x").invoke(first);
+                        ty = (double) first.getClass().getMethod("y").invoke(first);
+                        tz = (double) first.getClass().getMethod("z").invoke(first);
+                        tname = (String) first.getClass().getMethod("name").invoke(first);
                         if (tname == null) tname = "";
                     }
-                    if (tx != cachedTargetX || ty != cachedTargetY || tz != cachedTargetZ || !tname.equals(cachedTargetName)) {
+
+                    List<com.radiologistics.create.compat.RadarIntegration.TargetInfo> newTargets = new ArrayList<>();
+                    int limit = Math.min(count, 16);
+                    for (int i = 0; i < limit; i++) {
+                        Object t = targets.get(i);
+                        double xVal = (double) t.getClass().getMethod("x").invoke(t);
+                        double yVal = (double) t.getClass().getMethod("y").invoke(t);
+                        double zVal = (double) t.getClass().getMethod("z").invoke(t);
+                        String nameVal = (String) t.getClass().getMethod("name").invoke(t);
+                        if (nameVal == null) nameVal = "";
+                        newTargets.add(new com.radiologistics.create.compat.RadarIntegration.TargetInfo(xVal, yVal, zVal, nameVal));
+                    }
+
+                    boolean listChanged = false;
+                    if (newTargets.size() != cachedTargets.size()) {
+                        listChanged = true;
+                    } else {
+                        for (int i = 0; i < newTargets.size(); i++) {
+                            com.radiologistics.create.compat.RadarIntegration.TargetInfo oldT = cachedTargets.get(i);
+                            com.radiologistics.create.compat.RadarIntegration.TargetInfo newT = newTargets.get(i);
+                            if (oldT.x() != newT.x() || oldT.y() != newT.y() || oldT.z() != newT.z() || !oldT.name().equals(newT.name())) {
+                                listChanged = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (tx != cachedTargetX || ty != cachedTargetY || tz != cachedTargetZ || !tname.equals(cachedTargetName) || count != cachedTracksCount || listChanged) {
                         cachedTargetX = tx;
                         cachedTargetY = ty;
                         cachedTargetZ = tz;
                         cachedTargetName = tname;
+                        cachedTracksCount = count;
+                        cachedTargets.clear();
+                        cachedTargets.addAll(newTargets);
                         targetChanged = true;
                     }
                 } catch (Exception ignored) {}
             } else {
-                if (cachedTargetX != 0.0 || cachedTargetY != 0.0 || cachedTargetZ != 0.0 || !cachedTargetName.isEmpty()) {
+                if (cachedTargetX != 0.0 || cachedTargetY != 0.0 || cachedTargetZ != 0.0 || !cachedTargetName.isEmpty() || cachedTracksCount != 0 || !cachedTargets.isEmpty()) {
                     cachedTargetX = 0.0;
                     cachedTargetY = 0.0;
                     cachedTargetZ = 0.0;
                     cachedTargetName = "";
+                    cachedTracksCount = 0;
+                    cachedTargets.clear();
                     targetChanged = true;
                 }
             }
         } else {
-            if (cachedTargetX != 0.0 || cachedTargetY != 0.0 || cachedTargetZ != 0.0 || !cachedTargetName.isEmpty()) {
+            if (cachedTargetX != 0.0 || cachedTargetY != 0.0 || cachedTargetZ != 0.0 || !cachedTargetName.isEmpty() || cachedTracksCount != 0 || !cachedTargets.isEmpty()) {
                 cachedTargetX = 0.0;
                 cachedTargetY = 0.0;
                 cachedTargetZ = 0.0;
                 cachedTargetName = "";
+                cachedTracksCount = 0;
+                cachedTargets.clear();
                 targetChanged = true;
             }
         }

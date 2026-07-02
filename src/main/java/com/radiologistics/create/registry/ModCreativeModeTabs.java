@@ -28,6 +28,8 @@ public class ModCreativeModeTabs {
                 output.accept(ModItems.TRANSPARENT_SCREEN.get());
                 output.accept(ModItems.PILOT_HELMET.get());
                 output.accept(ModItems.WIRE.get());
+                output.accept(ModItems.SERVO_MOTOR.get());
+                output.accept(ModItems.SMART_OPTICAL_SENSOR.get());
 
                 if (net.neoforged.fml.ModList.get().isLoaded("createbigcannons")) {
                     output.accept(ModItems.WIRED_INERTIA_FUZE.get());

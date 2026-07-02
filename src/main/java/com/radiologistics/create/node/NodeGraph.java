@@ -48,7 +48,7 @@ public class NodeGraph {
     }
 
     public void addLink(String fromNode, String fromPort, String toNode, String toPort) {
-        // Enforce single connection per input port
+
         links.removeIf(link -> link.toNode().equals(toNode) && link.toPort().equals(toPort));
         links.add(new NodeLink(fromNode, fromPort, toNode, toPort));
     }
@@ -68,7 +68,7 @@ public class NodeGraph {
     private final Map<String, Map<String, Object>> evalCache = new HashMap<>();
     private final Set<String> visiting = new HashSet<>();
     private final Map<String, Object> variables = new HashMap<>();
-    private final Map<String, String> variableTypes = new HashMap<>(); // name -> "text"|"number"|"bool"
+    private final Map<String, String> variableTypes = new HashMap<>();
 
     public Map<String, Object> getVariables() {
         return variables;
@@ -78,41 +78,55 @@ public class NodeGraph {
         return variableTypes;
     }
 
-    /**
-     * Evaluates the graph. Triggers all action nodes (like Redstone Output) to calculate their inputs and update.
-     */
     public void evaluate(EvaluationContext context) {
         evalCache.clear();
         visiting.clear();
-        
-        // Find all sink nodes (nodes with side effects) and evaluate them
+
         for (AlgoNode node : nodes.values()) {
             if (node.getType().equals("redstone_output") || node.getType().equals("set_variable")
                     || node.getType().equals("antenna_output") || node.getType().equals("link_output")
                     || node.getType().equals("bool_viewer") || node.getType().equals("number_viewer")
                     || node.getType().equals("text_viewer") || node.getType().equals("jammer")
                     || node.getType().equals("helmet_screen") || node.getType().equals("screen")
+                    || node.getType().equals("set_list") || node.getType().equals("camera_screen")
+                    || node.getType().equals("servo_control")
                     || node.getType().equals("display_board") || node.getType().equals("camera")
                     || node.getType().equals("display_link") || node.getType().equals("gizmos_view")
                     || node.getType().equals("audio_play")) {
                 visiting.add(node.getId());
-                
+
                 Map<String, Object> inputValues = new HashMap<>();
                 for (String inputPort : node.getInputPorts()) {
                     inputValues.put(inputPort, evaluateInput(node.getId(), inputPort, context));
                 }
-                
+
                 visiting.remove(node.getId());
 
-                // Trigger the node evaluation
                 node.evaluate("", inputValues, context);
             }
         }
     }
 
-    /**
-     * Recursively evaluates the output connected to a target input port.
-     */
+    private Object parseStaticValue(String val) {
+        if (val == null) return "";
+        String trimmed = val.trim();
+        if (trimmed.equalsIgnoreCase("true")) {
+            return true;
+        }
+        if (trimmed.equalsIgnoreCase("false")) {
+            return false;
+        }
+        try {
+            if (trimmed.indexOf('.') >= 0) {
+                return Double.parseDouble(trimmed);
+            } else {
+                return Long.parseLong(trimmed);
+            }
+        } catch (NumberFormatException e) {
+            return val;
+        }
+    }
+
     public Object evaluateInput(String targetNodeId, String inputPort, EvaluationContext context) {
         NodeLink connection = null;
         for (NodeLink link : links) {
@@ -123,18 +137,23 @@ public class NodeGraph {
         }
 
         if (connection == null) {
-            return ""; // Default value when unconnected
+            AlgoNode node = nodes.get(targetNodeId);
+            if (node != null && node.getDefaultPortValues().containsKey(inputPort)) {
+                String val = node.getDefaultPortValues().get(inputPort);
+                if (val != null) {
+                    return parseStaticValue(val);
+                }
+            }
+            return "";
         }
 
         String sourceNodeId = connection.fromNode();
         String sourcePort = connection.fromPort();
 
-        // Break recursion loop
         if (visiting.contains(sourceNodeId)) {
             return "";
         }
 
-        // Return cached result if available
         if (evalCache.containsKey(sourceNodeId) && evalCache.get(sourceNodeId).containsKey(sourcePort)) {
             return evalCache.get(sourceNodeId).get(sourcePort);
         }
@@ -146,7 +165,6 @@ public class NodeGraph {
 
         visiting.add(sourceNodeId);
 
-        // Evaluate all inputs for the source node
         Map<String, Object> sourceInputs = new HashMap<>();
         for (String inPort : sourceNode.getInputPorts()) {
             sourceInputs.put(inPort, evaluateInput(sourceNodeId, inPort, context));
@@ -156,7 +174,6 @@ public class NodeGraph {
 
         visiting.remove(sourceNodeId);
 
-        // Cache the evaluated port result
         evalCache.computeIfAbsent(sourceNodeId, k -> new HashMap<>()).put(sourcePort, result);
 
         return result;
@@ -164,7 +181,7 @@ public class NodeGraph {
 
     public CompoundTag toNBT() {
         CompoundTag tag = new CompoundTag();
-        
+
         ListTag nodesList = new ListTag();
         for (AlgoNode node : nodes.values()) {
             nodesList.add(node.toNBT());
@@ -192,8 +209,8 @@ public class NodeGraph {
 
     public void loadNBT(CompoundTag tag) {
         clear();
-        
-        ListTag nodesList = tag.getList("nodes", 10); // 10 is Tag.TAG_COMPOUND
+
+        ListTag nodesList = tag.getList("nodes", 10);
         for (int i = 0; i < nodesList.size(); i++) {
             AlgoNode node = AlgoNode.fromNBT(nodesList.getCompound(i));
             if (node != null) {

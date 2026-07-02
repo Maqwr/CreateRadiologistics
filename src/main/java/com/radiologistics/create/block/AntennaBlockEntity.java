@@ -9,18 +9,14 @@ public class AntennaBlockEntity extends BaseModuleBlockEntity {
         super(ModBlockEntities.ANTENNA.get(), pos, state);
     }
 
-    /**
-     * Calculates the height of the vertical antenna stack by finding the bottom-most
-     * segment and counting upwards to the top.
-     */
     public int getAntennaHeight() {
         if (level == null) return 1;
-        
+
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos().set(worldPosition);
         while (level.getBlockState(cursor.below()).getBlock() instanceof AntennaBlock) {
             cursor.move(0, -1, 0);
         }
-        
+
         int height = 1;
         cursor.move(0, 1, 0);
         while (level.getBlockState(cursor).getBlock() instanceof AntennaBlock) {

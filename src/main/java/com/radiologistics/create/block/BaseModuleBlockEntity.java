@@ -7,7 +7,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
-public abstract class BaseModuleBlockEntity extends BlockEntity {
+public abstract class BaseModuleBlockEntity extends BlockEntity implements IComputerLinkable {
     protected BlockPos computerPos = null;
 
     public BaseModuleBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
@@ -73,5 +73,37 @@ public abstract class BaseModuleBlockEntity extends BlockEntity {
     @Override
     public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
         loadAdditional(tag, lookupProvider);
+    }
+
+    private boolean isBroken = false;
+
+    public void setBroken(boolean broken) {
+        this.isBroken = broken;
+    }
+
+    public boolean isBroken() {
+        return isBroken;
+    }
+
+    @Override
+    public void setRemoved() {
+        super.setRemoved();
+        try {
+            if (level != null && !level.isClientSide() && isBroken && computerPos != null) {
+                BlockEntity compBE = level.getBlockEntity(computerPos);
+                if (compBE instanceof MainComputerBlockEntity computer) {
+                    if (getBlockState() != null && getBlockState().getBlock() instanceof BaseModuleBlock) {
+                        String moduleType = ((BaseModuleBlock) getBlockState().getBlock()).getModuleType();
+                        if (moduleType.equals("jammer") || moduleType.equals("gyroscope") || moduleType.equals("screen")) {
+                            computer.unlinkModule(moduleType, worldPosition);
+                        } else {
+                            computer.unlinkModule(moduleType);
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+
+        }
     }
 }

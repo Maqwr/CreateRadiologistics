@@ -36,14 +36,12 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(center));
         scene.idle(90);
 
-        // Show targeting connection
         scene.addKeyframe();
         scene.overlay().showControls(util.vector().topOf(center), Pointing.DOWN, 40)
             .rightClick()
             .withItem(new net.minecraft.world.item.ItemStack(com.radiologistics.create.registry.ModItems.ANTENNA.get()));
         scene.idle(20);
 
-        // Show selection outline in Ponder
         scene.overlay().chaseBoundingBoxOutline(net.createmod.ponder.api.PonderPalette.OUTPUT, center, new net.minecraft.world.phys.AABB(center), 80);
         scene.idle(20);
 
@@ -52,7 +50,6 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(center));
         scene.idle(95);
 
-        // Place Base Antenna
         BlockPos adjacent = center.east();
         scene.world().setBlock(adjacent, ModBlocks.ANTENNA.get().defaultBlockState().setValue(AntennaBlock.TYPE, AntennaBlock.AntennaSegmentType.BASE), true);
         scene.world().showSection(util.select().position(adjacent), Direction.DOWN);
@@ -63,7 +60,6 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(adjacent));
         scene.idle(95);
 
-        // Stack more segments to show multiblock height summing
         scene.addKeyframe();
         BlockPos midPos = adjacent.above();
         BlockPos topPos = midPos.above();
@@ -88,7 +84,6 @@ public class RadiologisticsPonderScenes {
         scene.showBasePlate();
         scene.idle(10);
 
-        // 1. Place the Computer
         BlockPos computerPos = util.grid().at(2, 1, 1);
         scene.world().setBlock(computerPos, ModBlocks.MAIN_COMPUTER.get().defaultBlockState(), true);
         scene.world().showSection(util.select().position(computerPos), Direction.DOWN);
@@ -99,7 +94,6 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(computerPos));
         scene.idle(95);
 
-        // 2. Link Module
         scene.addKeyframe();
         BlockPos modulePos = util.grid().at(2, 1, 3);
         scene.overlay().showControls(util.vector().topOf(computerPos), Pointing.DOWN, 50)
@@ -107,7 +101,6 @@ public class RadiologisticsPonderScenes {
             .withItem(new net.minecraft.world.item.ItemStack(com.radiologistics.create.registry.ModItems.REDSTONE_LINK_MODULE.get()));
         scene.idle(20);
 
-        // Show selection outline in Ponder
         scene.overlay().chaseBoundingBoxOutline(net.createmod.ponder.api.PonderPalette.OUTPUT, computerPos, new net.minecraft.world.phys.AABB(computerPos), 80);
         scene.idle(20);
 
@@ -116,7 +109,6 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(computerPos));
         scene.idle(95);
 
-        // Place Module
         scene.world().setBlock(modulePos, ModBlocks.REDSTONE_LINK_MODULE.get().defaultBlockState(), true);
         scene.world().showSection(util.select().position(modulePos), Direction.DOWN);
         scene.idle(15);
@@ -126,19 +118,17 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(modulePos));
         scene.idle(95);
 
-        // 3. Place Display Link and Network Controller
         scene.addKeyframe();
         BlockPos displayLinkPos = util.grid().at(1, 1, 2);
         BlockPos networkControllerPos = util.grid().at(3, 1, 2);
 
-        // Get Display Link state (safely, standing on floor)
-        net.minecraft.world.level.block.state.BlockState displayLinkState = 
+        net.minecraft.world.level.block.state.BlockState displayLinkState =
             net.minecraft.core.registries.BuiltInRegistries.BLOCK
                 .getOptional(net.minecraft.resources.ResourceLocation.parse("create:display_link"))
                 .map(block -> {
                     var state = block.defaultBlockState();
                     if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.ATTACH_FACE)) {
-                        state = state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.ATTACH_FACE, 
+                        state = state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.ATTACH_FACE,
                             net.minecraft.world.level.block.state.properties.AttachFace.FLOOR);
                     }
                     if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING)) {
@@ -153,8 +143,7 @@ public class RadiologisticsPonderScenes {
         scene.world().setBlock(displayLinkPos, displayLinkState, true);
         scene.world().showSection(util.select().position(displayLinkPos), Direction.DOWN);
 
-        // Get Network Filterer state (safely, standing on floor)
-        net.minecraft.world.level.block.state.BlockState filtererState = 
+        net.minecraft.world.level.block.state.BlockState filtererState =
             net.minecraft.core.registries.BuiltInRegistries.BLOCK
                 .getOptional(net.minecraft.resources.ResourceLocation.parse("create_radar:network_filterer"))
                 .map(block -> {
@@ -176,28 +165,19 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().centerOf(displayLinkPos));
         scene.idle(85);
 
-        // 4. Place Cannon Mount, Display Board, and Vista Camera
         scene.addKeyframe();
         BlockPos displayBoardPos = util.grid().at(1, 1, 4);
         BlockPos cannonMountPos = util.grid().at(3, 1, 4);
-        BlockPos cameraPos = util.grid().at(2, 1, 4);
 
-        // Safe states retrieval
-        net.minecraft.world.level.block.state.BlockState cannonMountState = 
+        net.minecraft.world.level.block.state.BlockState cannonMountState =
             net.minecraft.core.registries.BuiltInRegistries.BLOCK
                 .getOptional(net.minecraft.resources.ResourceLocation.parse("createbigcannons:cannon_mount"))
                 .map(block -> block.defaultBlockState())
                 .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
 
-        net.minecraft.world.level.block.state.BlockState displayBoardState = 
+        net.minecraft.world.level.block.state.BlockState displayBoardState =
             net.minecraft.core.registries.BuiltInRegistries.BLOCK
                 .getOptional(net.minecraft.resources.ResourceLocation.parse("create:display_board"))
-                .map(block -> block.defaultBlockState())
-                .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
-
-        net.minecraft.world.level.block.state.BlockState cameraState = 
-            net.minecraft.core.registries.BuiltInRegistries.BLOCK
-                .getOptional(net.minecraft.resources.ResourceLocation.parse("vista:view_finder"))
                 .map(block -> block.defaultBlockState())
                 .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
 
@@ -215,36 +195,9 @@ public class RadiologisticsPonderScenes {
         scene.idle(10);
 
         scene.overlay().showText(80)
-            .text("Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.")
+            .text("Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.")
             .pointAt(util.vector().centerOf(cannonMountPos));
         scene.idle(85);
-
-        scene.world().setBlock(cameraPos, cameraState, true);
-        scene.world().showSection(util.select().position(cameraPos), Direction.DOWN);
-        scene.idle(10);
-
-        scene.overlay().showText(80)
-            .text("Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!")
-            .pointAt(util.vector().centerOf(cameraPos));
-        scene.idle(40);
-
-        // Animate Camera Yaw & Pitch rotation smoothly
-        for (int i = 0; i < 40; i++) {
-            final float yaw = (float) (i * 2.0);
-            final float pitch = (float) (Math.sin(i * 0.2) * 20.0);
-            scene.world().modifyBlockEntity(cameraPos, net.minecraft.world.level.block.entity.BlockEntity.class, be -> {
-                try {
-                    if (be.getClass().getName().equals("net.mehvahdjukaar.vista.common.view_finder.ViewFinderBlockEntity")) {
-                        java.lang.reflect.Method setLocalOrientMethod = be.getClass().getMethod("setLocalOrientation", org.joml.Quaternionf.class);
-                        org.joml.Quaternionf q = new org.joml.Quaternionf().rotationYXZ((float)Math.toRadians(yaw), (float)Math.toRadians(pitch), 0.0f);
-                        setLocalOrientMethod.invoke(be, q);
-                        be.setChanged();
-                    }
-                } catch (Throwable ignored) {}
-            });
-            scene.idle(1);
-        }
-        scene.idle(40);
     }
 
     public static void screenScene(SceneBuilder scene, SceneBuildingUtil util) {
@@ -268,7 +221,6 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(screenPos));
         scene.idle(95);
 
-        // Link with Wire
         scene.addKeyframe();
         scene.overlay().showControls(util.vector().topOf(computerPos), Pointing.DOWN, 40)
             .rightClick()
@@ -288,13 +240,11 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().centerOf(screenPos));
         scene.idle(95);
 
-        // Show screen output
         scene.addKeyframe();
         scene.overlay().showText(100)
             .text("Once linked, the computer's graph node layout will output graphics directly on the screen canvas!")
             .pointAt(util.vector().centerOf(screenPos));
-        
-        // Highlight screen center area and show a simulated display frame in Ponder
+
         scene.overlay().chaseBoundingBoxOutline(net.createmod.ponder.api.PonderPalette.FAST, screenPos, new net.minecraft.world.phys.AABB(screenPos).inflate(0.01), 100);
         scene.idle(115);
     }
@@ -315,7 +265,6 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(computerPos));
         scene.idle(95);
 
-        // Right-click computer with Helmet
         scene.addKeyframe();
         scene.overlay().showControls(util.vector().topOf(computerPos), Pointing.DOWN, 50)
             .rightClick()
@@ -330,11 +279,177 @@ public class RadiologisticsPonderScenes {
             .pointAt(util.vector().topOf(computerPos));
         scene.idle(95);
 
-        // Explain HUD overlay when worn
         scene.addKeyframe();
         scene.overlay().showText(120)
             .text("Wear the linked helmet in your head armor slot. The computer will stream HUD overlay shapes, lines, text, and camera feeds directly to your screen!")
             .pointAt(util.vector().topOf(computerPos));
         scene.idle(130);
+    }
+
+    public static void servoMotorScene(SceneBuilder scene, SceneBuildingUtil util) {
+        scene.title("servo_motor", "Using the Servo Motor");
+        scene.configureBasePlate(0, 0, 5);
+        scene.showBasePlate();
+        scene.idle(10);
+
+        scene.addKeyframe();
+        BlockPos computerPos = util.grid().at(2, 1, 1);
+        scene.world().setBlock(computerPos, ModBlocks.MAIN_COMPUTER.get().defaultBlockState(), true);
+        scene.world().showSection(util.select().position(computerPos), Direction.DOWN);
+        scene.idle(15);
+
+        scene.overlay().showText(80)
+            .text("Place the Main Computer first. It will control the servo motor.")
+            .pointAt(util.vector().topOf(computerPos));
+        scene.idle(95);
+
+        BlockPos servoPos = util.grid().at(2, 1, 3);
+        scene.overlay().showControls(util.vector().topOf(computerPos), Pointing.DOWN, 40)
+            .rightClick()
+            .withItem(new net.minecraft.world.item.ItemStack(com.radiologistics.create.registry.ModItems.SERVO_MOTOR.get()));
+        scene.idle(20);
+
+        scene.overlay().chaseBoundingBoxOutline(net.createmod.ponder.api.PonderPalette.OUTPUT, computerPos, new net.minecraft.world.phys.AABB(computerPos), 80);
+        scene.idle(20);
+
+        scene.overlay().showText(80)
+            .text("Right-click the Main Computer with the Servo Motor in hand to assign the link target.")
+            .pointAt(util.vector().topOf(computerPos));
+        scene.idle(95);
+
+        scene.addKeyframe();
+        BlockPos motorPos = util.grid().at(2, 1, 4);
+
+        net.minecraft.world.level.block.state.BlockState creativeMotorState =
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .getOptional(net.minecraft.resources.ResourceLocation.parse("create:creative_motor"))
+                .map(block -> {
+                    var state = block.defaultBlockState();
+                    if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING)) {
+                        state = state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING, Direction.NORTH);
+                    }
+                    return state;
+                })
+                .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+
+        scene.world().setBlock(motorPos, creativeMotorState, true);
+        scene.world().showSection(util.select().position(motorPos), Direction.DOWN);
+        scene.idle(10);
+
+        scene.world().setBlock(servoPos, ModBlocks.SERVO_MOTOR.get().defaultBlockState().setValue(com.radiologistics.create.block.ServoMotorBlock.FACING, Direction.NORTH), true);
+        scene.world().showSection(util.select().position(servoPos), Direction.DOWN);
+        scene.idle(15);
+
+        scene.overlay().showText(80)
+            .text("Place the Servo Motor and connect kinetic energy (like a creative motor or shaft) to the back input shaft.")
+            .pointAt(util.vector().centerOf(motorPos));
+        scene.idle(95);
+
+        scene.addKeyframe();
+        scene.overlay().showText(100)
+            .text("Once connected, you can program node logic to set the motor's target angle and retrieve current feedback.")
+            .pointAt(util.vector().centerOf(servoPos));
+        scene.idle(110);
+    }
+
+    public static void smartOpticalSensorScene(SceneBuilder scene, SceneBuildingUtil util) {
+        scene.title("smart_optical_sensor", "Using the Smart Optical Sensor");
+        scene.configureBasePlate(0, 0, 5);
+        scene.showBasePlate();
+        scene.idle(10);
+
+        scene.addKeyframe();
+        BlockPos sensorPos = util.grid().at(2, 1, 2);
+        scene.world().setBlock(sensorPos, ModBlocks.SMART_OPTICAL_SENSOR.get().defaultBlockState().setValue(com.radiologistics.create.block.SmartOpticalSensorBlock.FACING, Direction.SOUTH), true);
+        scene.world().showSection(util.select().position(sensorPos), Direction.DOWN);
+        scene.idle(15);
+
+        scene.overlay().showText(80)
+            .text("The Smart Optical Sensor raycasts up to 150 blocks in its facing direction.")
+            .pointAt(util.vector().topOf(sensorPos));
+        scene.idle(95);
+
+        scene.addKeyframe();
+        BlockPos targetPos = util.grid().at(2, 1, 4);
+        scene.world().setBlock(targetPos, net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState(), true);
+        scene.world().showSection(util.select().position(targetPos), Direction.DOWN);
+
+        scene.world().setBlock(sensorPos, ModBlocks.SMART_OPTICAL_SENSOR.get().defaultBlockState()
+            .setValue(com.radiologistics.create.block.SmartOpticalSensorBlock.FACING, Direction.SOUTH)
+            .setValue(com.radiologistics.create.block.SmartOpticalSensorBlock.POWERED, true), true);
+        scene.world().modifyBlockEntity(sensorPos, com.radiologistics.create.block.SmartOpticalSensorBlockEntity.class, be -> {
+            be.setTargetDistance(2.0f);
+        });
+        scene.idle(15);
+
+        scene.overlay().showText(80)
+            .text("When hitting blocks or entities, it emits redstone power (15) and draws a red laser dot.")
+            .pointAt(util.vector().topOf(targetPos));
+        scene.idle(95);
+
+        scene.addKeyframe();
+        scene.overlay().showText(90)
+            .text("Use the range switch on the sensor to adjust the maximum detection distance (up to 150 blocks).")
+            .pointAt(util.vector().centerOf(sensorPos));
+        scene.idle(105);
+
+        scene.addKeyframe();
+        BlockPos linkPos = util.grid().at(2, 1, 1);
+        BlockPos boardPos = util.grid().at(2, 1, 0);
+
+        net.minecraft.world.level.block.state.BlockState displayLinkState =
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .getOptional(net.minecraft.resources.ResourceLocation.parse("create:display_link"))
+                .map(block -> {
+                    var state = block.defaultBlockState();
+                    if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING)) {
+                        state = state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH);
+                    }
+                    return state;
+                })
+                .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+
+        net.minecraft.world.level.block.state.BlockState displayBoardState =
+            net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .getOptional(net.minecraft.resources.ResourceLocation.parse("create:display_board"))
+                .map(block -> {
+                    var state = block.defaultBlockState();
+                    if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING)) {
+                        state = state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH);
+                    }
+                    return state;
+                })
+                .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+
+        scene.world().setBlock(boardPos, displayBoardState, true);
+        scene.world().showSection(util.select().position(boardPos), Direction.DOWN);
+        scene.idle(15);
+
+        var displayLinkItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse("create:display_link"));
+        net.minecraft.world.item.ItemStack displayLinkStack = new net.minecraft.world.item.ItemStack(displayLinkItem);
+
+        scene.overlay().showControls(util.vector().topOf(boardPos), Pointing.DOWN, 40)
+            .rightClick()
+            .withItem(displayLinkStack);
+        scene.idle(20);
+
+        scene.overlay().chaseBoundingBoxOutline(net.createmod.ponder.api.PonderPalette.OUTPUT, boardPos, new net.minecraft.world.phys.AABB(boardPos), 60);
+        scene.idle(20);
+
+        scene.overlay().showText(80)
+            .text("First, right-click the target Display Board with the Display Link in hand...")
+            .pointAt(util.vector().centerOf(boardPos));
+        scene.idle(95);
+
+        scene.addKeyframe();
+
+        scene.world().setBlock(linkPos, displayLinkState, true);
+        scene.world().showSection(util.select().position(linkPos), Direction.DOWN);
+        scene.idle(15);
+
+        scene.overlay().showText(120)
+            .text("...then place it on the back of the sensor. It will print the target block information dynamically!")
+            .pointAt(util.vector().centerOf(linkPos));
+        scene.idle(135);
     }
 }

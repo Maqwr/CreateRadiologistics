@@ -20,6 +20,8 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
+import com.mojang.blaze3d.vertex.PoseStack;
 
 @EventBusSubscriber(modid = Radiologistics.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
 public class LinkOutlineRenderer {
@@ -40,6 +42,7 @@ public class LinkOutlineRenderer {
             boolean holdingModule = isModuleItem(player.getMainHandItem()) || isModuleItem(player.getOffhandItem());
             if (holdingModule) {
                 renderOutline(player, targetPos);
+                renderTextDisplays(event, player, targetPos);
             }
             return;
         }
@@ -47,7 +50,6 @@ public class LinkOutlineRenderer {
         ItemStack main = player.getMainHandItem();
         ItemStack off = player.getOffhandItem();
 
-        // 1. Highlight the wire selected group
         BlockPos wireSelectedPos = getWireSelectedPos(main);
         if (wireSelectedPos == null) {
             wireSelectedPos = getWireSelectedPos(off);
@@ -58,10 +60,10 @@ public class LinkOutlineRenderer {
             for (BlockPos pos : group) {
                 renderOutline(player, pos);
             }
+            renderTextDisplays(event, player, wireSelectedPos);
             return;
         }
 
-        // 2. Fallback to highlight the linked computer
         BlockPos linkedPos = getLinkedComputerPos(main);
         if (linkedPos == null) {
             linkedPos = getLinkedComputerPos(off);
@@ -69,7 +71,68 @@ public class LinkOutlineRenderer {
 
         if (linkedPos != null) {
             renderOutline(player, linkedPos);
+            renderTextDisplays(event, player, linkedPos);
         }
+    }
+
+    private static void renderTextDisplays(RenderLevelStageEvent event, Player player, BlockPos startPos) {
+        net.minecraft.world.level.Level level = player.level();
+        net.minecraft.world.level.block.entity.BlockEntity startBe = level.getBlockEntity(startPos);
+        BlockPos computerPos = null;
+
+        if (startBe instanceof MainComputerBlockEntity) {
+            computerPos = startPos;
+        } else if (startBe instanceof com.radiologistics.create.block.IComputerLinkable module) {
+            computerPos = module.getComputerPos();
+        } else if (startBe instanceof FlapDisplayBlockEntity || startBe instanceof NixieTubeBlockEntity) {
+            computerPos = findLinkingComputer(level, startPos);
+        } else if (startBe instanceof com.simibubi.create.content.redstone.displayLink.DisplayLinkBlockEntity) {
+            computerPos = findLinkingComputer(level, startPos);
+        }
+
+        if (computerPos != null) {
+            net.minecraft.world.level.block.entity.BlockEntity compBe = level.getBlockEntity(computerPos);
+            if (compBe instanceof MainComputerBlockEntity computer) {
+                for (Map.Entry<String, BlockPos> entry : computer.getLinkedModules().entrySet()) {
+                    String key = entry.getKey();
+                    if (key.startsWith("servo_motor_")) {
+                        BlockPos servoPos = entry.getValue();
+                        String indexStr = key.substring("servo_motor_".length());
+                        renderTextBillboard(event.getPoseStack(), event.getCamera(), servoPos, indexStr);
+                    } else if (key.startsWith("gyroscope_")) {
+                        BlockPos gyroPos = entry.getValue();
+                        String indexStr = key.substring("gyroscope_".length());
+                        renderTextBillboard(event.getPoseStack(), event.getCamera(), gyroPos, indexStr);
+                    } else if (key.startsWith("screen_")) {
+                        BlockPos screenPos = entry.getValue();
+                        String indexStr = key.substring("screen_".length());
+                        renderTextBillboard(event.getPoseStack(), event.getCamera(), screenPos, indexStr);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void renderTextBillboard(PoseStack poseStack, net.minecraft.client.Camera camera, BlockPos pos, String text) {
+        double rx = pos.getX() + 0.5;
+        double ry = pos.getY() + 1.2;
+        double rz = pos.getZ() + 0.5;
+
+        net.minecraft.client.renderer.MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+        net.minecraft.client.renderer.debug.DebugRenderer.renderFloatingText(
+            poseStack,
+            bufferSource,
+            text,
+            rx,
+            ry,
+            rz,
+            0xFFFFFFFF,
+            0.02f,
+            true,
+            0.0f,
+            true
+        );
+        bufferSource.endBatch();
     }
 
     private static BlockPos getWireSelectedPos(ItemStack stack) {
@@ -109,7 +172,7 @@ public class LinkOutlineRenderer {
 
         if (startBe instanceof MainComputerBlockEntity) {
             computerPos = startPos;
-        } else if (startBe instanceof BaseModuleBlockEntity module) {
+        } else if (startBe instanceof com.radiologistics.create.block.IComputerLinkable module) {
             computerPos = module.getComputerPos();
         } else if (startBe instanceof FlapDisplayBlockEntity || startBe instanceof NixieTubeBlockEntity) {
             computerPos = findLinkingComputer(level, startPos);
@@ -161,7 +224,7 @@ public class LinkOutlineRenderer {
             aabb = new AABB(pos);
         }
         net.createmod.catnip.outliner.Outliner.getInstance().showAABB(pos, aabb, 2)
-            .colored(0xFFFFCD74) // Create's Display Link color (0xFFCD74 with full alpha)
+            .colored(0xFFFFCD74)
             .lineWidth(0.0625f);
     }
 
@@ -180,6 +243,7 @@ public class LinkOutlineRenderer {
             || item == ModItems.JAMMER.get()
             || item == ModItems.AUDIO_MODULE.get()
             || item == ModItems.TRANSPARENT_SCREEN.get()
+            || item == ModItems.SERVO_MOTOR.get()
             || item == ModItems.WIRE.get()
             || item == ModItems.PILOT_HELMET.get()
             || isNetworkFiltererItem(item);

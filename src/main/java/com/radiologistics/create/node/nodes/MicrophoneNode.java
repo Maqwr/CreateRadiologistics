@@ -78,7 +78,7 @@ public class MicrophoneNode extends AlgoNode {
     }
 
     private boolean isPlayerSpeaking(Player player, long gameTime) {
-        // 1. Simple Voice Chat check
+
         try {
             if (net.neoforged.fml.ModList.get().isLoaded("voicechat")) {
                 Long lastSpoke = com.radiologistics.create.compat.VoiceChatPluginImpl.lastSpokeTicks.get(player.getUUID());
@@ -88,7 +88,6 @@ public class MicrophoneNode extends AlgoNode {
             }
         } catch (Throwable ignored) {}
 
-        // 2. Plasmo Voice check
         try {
             if (net.neoforged.fml.ModList.get().isLoaded("plasmo_voice")) {
                 if (player.isShiftKeyDown()) {

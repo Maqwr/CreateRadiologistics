@@ -1,0 +1,34 @@
+{
+	"render_type": "minecraft:cutout",
+	"texture_size": [64, 64],
+	"textures": {
+		"0": "radiologistics:block/audiotex",
+		"particle": "radiologistics:block/audiotex"
+	},
+	"elements": [
+		{
+			"from": [6.0, 4.0, 6.0],
+			"to": [10.0, 5.0, 10.0],
+			"faces": {
+				"north": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"east": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"south": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"west": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"up": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"down": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"}
+			}
+		},
+		{
+			"from": [7.0, 4.2, 1.0],
+			"to": [9.0, 4.8, 7.0],
+			"faces": {
+				"north": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"east": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"south": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"west": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"up": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"},
+				"down": {"uv": [3.25, 1, 4, 1.75], "texture": "#0"}
+			}
+		}
+	]
+}

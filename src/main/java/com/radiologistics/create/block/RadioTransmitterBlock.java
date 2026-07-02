@@ -69,7 +69,7 @@ public class RadioTransmitterBlock extends Block implements EntityBlock, com.sim
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof RadioTransmitterBlockEntity transmitter) {
-                // Send packet to open GUI configuration
+
                 int range = Math.min(3000, 100 + transmitter.getAttachedAntennaHeight() * 150);
                 PacketDistributor.sendToPlayer(serverPlayer, new OpenTransmitterScreenPacket(pos, transmitter.getChannel(), transmitter.getMessage(), range));
             }

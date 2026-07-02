@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.radiologistics.create'
-version = '1.1.0'
+version = '1.1.1'
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -71,6 +71,10 @@ repositories {
     }
 }
 
+configurations {
+    shadowLib
+}
+
 dependencies {
     // Create Mod Dependency
     implementation("maven.modrinth:create:UjX6dr61") {
@@ -108,10 +112,19 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
     testImplementation 'org.mockito:mockito-core:5.11.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
-    testCompileOnly files(sourceSets.main.compileClasspath)
-    testRuntimeOnly files(sourceSets.main.compileClasspath)
+    testImplementation files(sourceSets.main.compileClasspath)
     compileOnly "de.maxhenkel.voicechat:voicechat-api:2.5.0"
     runtimeOnly("maven.modrinth:simple-voice-chat:neoforge-1.21.1-2.6.17")
+    
+    // JLayer MP3 Decoder for Link Stream URL audio playback
+    implementation "javazoom:jlayer:1.0.1"
+    shadowLib "javazoom:jlayer:1.0.1"
+}
+
+project.afterEvaluate {
+    dependencies {
+        add("additionalRuntimeClasspath", "javazoom:jlayer:1.0.1")
+    }
 }
 
 test {
@@ -141,3 +154,18 @@ neoForge {
         }
     }
 }
+
+jar {
+    from {
+        configurations.shadowLib.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude 'META-INF/MANIFEST.MF'
+        exclude 'META-INF/*.SF'
+        exclude 'META-INF/*.DSA'
+        exclude 'META-INF/*.RSA'
+    }
+}
+
+
+
+

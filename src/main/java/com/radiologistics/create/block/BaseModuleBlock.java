@@ -39,7 +39,7 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
         if (!level.isClientSide() && placer instanceof ServerPlayer player) {
-            // Спеціальна логіка для екранів (мультиблок)
+
             if (moduleType.equals("screen")) {
                 BlockPos targetPos = null;
                 for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
@@ -54,13 +54,19 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
                     }
                 }
                 if (targetPos != null) {
-                    BlockEntity moduleBE = level.getBlockEntity(pos);
-                    if (moduleBE instanceof BaseModuleBlockEntity module) {
-                        module.setComputerPos(targetPos);
-                        module.setChanged();
+                    BlockEntity compBE = resolveBlockEntity(level, targetPos);
+                    if (compBE instanceof MainComputerBlockEntity computer) {
+                        boolean success = computer.linkModule("screen", pos);
+                        if (success) {
+                            BlockEntity moduleBE = level.getBlockEntity(pos);
+                            if (moduleBE instanceof BaseModuleBlockEntity module) {
+                                module.setComputerPos(targetPos);
+                                module.setChanged();
+                            }
+                            player.displayClientMessage(Component.literal("success").withStyle(net.minecraft.ChatFormatting.GREEN), true);
+                            return;
+                        }
                     }
-                    player.displayClientMessage(Component.literal("success (connected to screen group)").withStyle(net.minecraft.ChatFormatting.GREEN), true);
-                    return; // Успішно повертаємося, не знищуючи блок!
                 }
             }
 
@@ -68,8 +74,10 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
             if (computerPos != null) {
                 BlockEntity be = resolveBlockEntity(level, computerPos);
                 if (be instanceof MainComputerBlockEntity computer) {
-                    // Check distance (max 10 blocks)
-                    double distSq = pos.distSqr(computerPos);
+
+                    net.minecraft.world.phys.Vec3 p1 = MainComputerBlockEntity.getWorldPos(level, pos);
+                    net.minecraft.world.phys.Vec3 p2 = MainComputerBlockEntity.getWorldPos(level, computerPos);
+                    double distSq = p1.distanceToSqr(p2);
                     if (distSq > 100.0) {
                         player.displayClientMessage(Component.literal("too far").withStyle(ChatFormatting.RED), true);
                     } else {
@@ -93,7 +101,7 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
             } else {
                 player.displayClientMessage(Component.literal("no computer assigned").withStyle(ChatFormatting.RED), true);
             }
-            // Pop the block back as an item if linking is required but failed
+
             if (!player.isCreative()) {
                 Block.popResource(level, pos, new ItemStack(this));
             }
@@ -106,14 +114,17 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
         if (!state.is(newState.getBlock())) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof BaseModuleBlockEntity module) {
+                module.setBroken(true);
                 BlockPos computerPos = module.getComputerPos();
                 if (computerPos != null && !level.isClientSide()) {
-                    BlockEntity compBE = resolveBlockEntity(level, computerPos);
-                    if (compBE instanceof MainComputerBlockEntity computer) {
-                        if (moduleType.equals("jammer")) {
-                            computer.unlinkModule("jammer", pos);
-                        } else if (pos.equals(computer.getModulePos(moduleType))) {
-                            computer.unlinkModule(moduleType);
+                    if (!isMoving && !com.radiologistics.create.Radiologistics.isServerStopping) {
+                        BlockEntity compBE = resolveBlockEntity(level, computerPos);
+                        if (compBE instanceof MainComputerBlockEntity computer) {
+                            if (moduleType.equals("jammer") || moduleType.equals("gyroscope") || moduleType.equals("screen")) {
+                                computer.unlinkModule(moduleType, pos);
+                            } else if (pos.equals(computer.getModulePos(moduleType))) {
+                                computer.unlinkModule(moduleType);
+                            }
                         }
                     }
                 }
@@ -122,11 +133,11 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
                     for (net.minecraft.world.entity.player.Player player : level.players()) {
                         if (player instanceof ServerPlayer serverPlayer) {
                             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
-                                serverPlayer, 
+                                serverPlayer,
                                 new com.radiologistics.create.network.PlayAudioModulePacket(pos, false, "url", "", 1.0, 1.0, 0.0)
                             );
                             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
-                                serverPlayer, 
+                                serverPlayer,
                                 new com.radiologistics.create.network.PlayAudioModulePacket(pos, false, "tts", "", 1.0, 1.0, 0.0)
                             );
                         }
@@ -160,23 +171,19 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
 
     public static BlockEntity resolveBlockEntity(Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
-        
-        // 1. Check local level first (if chunk is loaded)
+
         if (level.hasChunkAt(pos)) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be != null) return be;
         }
-        
-        // 2. If server is stopping, bypass reflection/sublevel lookups
+
         if (com.radiologistics.create.Radiologistics.isServerStopping) {
             return null;
         }
 
-        // 3. Initialize reflection
         initReflection();
 
-        // 4. Try sublevel parent check
-        if (subLevelClass != null && getLevelMethod != null && subLevelClass.isInstance(level)) {
+        if (getLevelMethod != null && com.radiologistics.create.block.MainComputerBlockEntity.isSableSubLevel(level)) {
             try {
                 Level parentLevel = (Level) getLevelMethod.invoke(level);
                 if (parentLevel != null && parentLevel.hasChunkAt(pos)) {
@@ -186,15 +193,22 @@ public abstract class BaseModuleBlock extends Block implements EntityBlock, com.
             } catch (Throwable ignored) {}
         }
 
-        // 5. Try SableCompanion containing check
         if (companionInstance != null && getContainingMethod != null) {
             try {
-                Object subLevelAccess = getContainingMethod.invoke(companionInstance, level, pos);
-                if (subLevelAccess instanceof Level subLevel) {
-                    if (subLevel.hasChunkAt(pos)) {
-                        BlockEntity be = subLevel.getBlockEntity(pos);
-                        if (be != null) return be;
-                    }
+                Object subLevel = getContainingMethod.invoke(companionInstance, level, pos);
+                if (subLevel != null) {
+                    try {
+                        Object plot = subLevel.getClass().getMethod("getPlot").invoke(subLevel);
+                        if (plot != null) {
+                            net.minecraft.world.level.ChunkPos chunkPos = new net.minecraft.world.level.ChunkPos(pos);
+                            java.lang.reflect.Method getChunkMethod = plot.getClass().getMethod("getChunk", net.minecraft.world.level.ChunkPos.class);
+                            net.minecraft.world.level.chunk.LevelChunk chunk = (net.minecraft.world.level.chunk.LevelChunk) getChunkMethod.invoke(plot, chunkPos);
+                            if (chunk != null) {
+                                BlockEntity be = chunk.getBlockEntity(pos);
+                                if (be != null) return be;
+                            }
+                        }
+                    } catch (Throwable ignored) {}
                 }
             } catch (Throwable ignored) {}
         }

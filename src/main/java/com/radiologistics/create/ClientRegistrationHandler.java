@@ -19,12 +19,15 @@ public class ClientRegistrationHandler {
         event.registerBlockEntityRenderer(ModBlockEntities.RADIO_TRANSMITTER.get(), RadioTransmitterRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.GYROSCOPE_SENSOR.get(), GyroscopeSensorRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.TRANSPARENT_SCREEN.get(), com.radiologistics.create.block.ScreenBlockEntityRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.SERVO_MOTOR.get(), com.radiologistics.create.block.ServoMotorRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.SMART_OPTICAL_SENSOR.get(), com.radiologistics.create.block.SmartOpticalSensorRenderer::new);
     }
 
     @SubscribeEvent
     public static void registerAdditionalModels(ModelEvent.RegisterAdditional event) {
         event.register(ModelResourceLocation.standalone(ResourceLocation.fromNamespaceAndPath(Radiologistics.MODID, "block/radio_transmitter_click")));
         event.register(ModelResourceLocation.standalone(ResourceLocation.fromNamespaceAndPath(Radiologistics.MODID, "block/gyroscope_sensor_gyro")));
+        event.register(ModelResourceLocation.standalone(ResourceLocation.fromNamespaceAndPath(Radiologistics.MODID, "block/servo_motor_horn")));
     }
 
     @SubscribeEvent

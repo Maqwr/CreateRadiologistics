@@ -12,7 +12,6 @@ import java.util.*;
 public class DisplayBoardNode extends AlgoNode {
     private BlockPos boardPos = BlockPos.ZERO;
 
-    /** Last text we successfully sent to the board — skip update if unchanged */
     private String lastSentText = null;
 
     public DisplayBoardNode(String id, double x, double y) {
@@ -48,7 +47,7 @@ public class DisplayBoardNode extends AlgoNode {
         } else {
             boardPos = BlockPos.ZERO;
         }
-        lastSentText = null; // reset cache when loading
+        lastSentText = null;
     }
 
     @Override
@@ -56,7 +55,6 @@ public class DisplayBoardNode extends AlgoNode {
         Object val = inputValues.get("text");
         String text = (val != null) ? String.valueOf(val) : "";
 
-        // Skip update if text has not changed — avoids flap animation spam every tick
         if (Objects.equals(text, lastSentText)) return null;
 
         if (context.getLevel() != null && !context.getLevel().isClientSide()
@@ -75,14 +73,14 @@ public class DisplayBoardNode extends AlgoNode {
                             controller.getBlockPos(),
                             controller.getBlockState(),
                             controller.getBlockState(), 3);
-                    lastSentText = text; // update cache only on success
+                    lastSentText = text;
                 }
             } else if (be instanceof com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity nixie) {
                 String jsonText = Component.Serializer.toJson(Component.literal(text), context.getLevel().registryAccess());
                 com.simibubi.create.content.redstone.nixieTube.NixieTubeBlock.walkNixies(
-                    context.getLevel(), 
-                    boardPos, 
-                    false, 
+                    context.getLevel(),
+                    boardPos,
+                    false,
                     (nixiePos, idx) -> {
                         BlockEntity tubeBe = context.getLevel().getBlockEntity(nixiePos);
                         if (tubeBe instanceof com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity tube) {

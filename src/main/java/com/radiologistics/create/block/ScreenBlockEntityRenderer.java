@@ -21,7 +21,6 @@ import net.minecraft.world.phys.Vec3;
 public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBlockEntity> {
     private final Font font;
 
-    // Custom depth-tested render type with POSITION_COLOR format to prevent crashes with GuiGraphics.fill
     private static final RenderType SCREEN_GUI_RENDER_TYPE = RenderType.create(
             "screen_gui",
             com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR,
@@ -41,10 +40,9 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
                     .createCompositeState(false)
     );
 
-    // Virtual canvas size — 100×100 maps to the full screen face
     private static final double CANVAS = 100.0;
-    // Scale: 1 block = 1.0 world unit. Canvas 100 → 1 block face (0.95 to leave a tiny border)
-    private static final float SCALE = 0.0095f; // 100 * 0.0095 = 0.95 blocks
+
+    private static final float SCALE = 0.0095f;
 
     public ScreenBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
         this.font = context.getFont();
@@ -194,11 +192,8 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
             MultiBufferSource.BufferSource buffer = bufferSource instanceof MultiBufferSource.BufferSource bs
                     ? bs : Minecraft.getInstance().renderBuffers().bufferSource();
 
-            if (dScreen >= 0) {
-                renderFace(arr, poseStack, buffer, facing, false, blockEntity, 0xF000F0, width, height);
-            } else {
-                renderFace(arr, poseStack, buffer, facing, true, blockEntity, 0xF000F0, width, height);
-            }
+            renderFace(arr, poseStack, buffer, facing, false, blockEntity, 0xF000F0, width, height);
+            renderFace(arr, poseStack, buffer, facing, true, blockEntity, 0xF000F0, width, height);
 
         } catch (Exception e) {
             com.radiologistics.create.Radiologistics.LOGGER.error("Error rendering screen block entity", e);
@@ -206,7 +201,7 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
     }
 
     private void renderProjected3DGizmos(JsonObject obj, GuiGraphics g, Font font, ScreenBlockEntity blockEntity,
-                                         net.minecraft.core.Direction facing, int width, int height, boolean backFace) {
+                                         net.minecraft.core.Direction facing, int width, int height, boolean backFace, PoseStack screenCenterPoseStack) {
         double wx = obj.has("x") ? obj.get("x").getAsDouble() : 0;
         double wy = obj.has("y") ? obj.get("y").getAsDouble() : 0;
         double wz = obj.has("z") ? obj.get("z").getAsDouble() : 0;
@@ -217,60 +212,36 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
         net.minecraft.client.Camera camera = mc.gameRenderer.getMainCamera();
         Vec3 camPos = camera.getPosition();
 
-        double diffX, diffY, diffZ;
-        if (facing == net.minecraft.core.Direction.NORTH || facing == net.minecraft.core.Direction.SOUTH) {
-            diffX = width * 0.5;
-            diffY = height * 0.5;
-            diffZ = 0.5;
-        } else {
-            diffX = 0.5;
-            diffY = height * 0.5;
-            diffZ = width * 0.5;
-        }
+        org.joml.Matrix4f poseMat = new org.joml.Matrix4f(screenCenterPoseStack.last().pose());
 
-        BlockPos masterPos = blockEntity.getBlockPos();
-        double centerX = masterPos.getX() + diffX;
-        double centerY = masterPos.getY() + diffY;
-        double centerZ = masterPos.getZ() + diffZ;
-        Vec3 sCenter = new Vec3(centerX, centerY, centerZ);
+        org.joml.Vector4f centerVec = new org.joml.Vector4f(0, 0, 0, 1);
+        poseMat.transform(centerVec);
+        Vec3 sCenterCameraRelative = new Vec3(centerVec.x(), centerVec.y(), centerVec.z());
 
-        Vec3 normal = Vec3.ZERO;
-        Vec3 uDir = Vec3.ZERO;
-        Vec3 vDir = new Vec3(0, 1, 0);
+        org.joml.Vector4f uVec = new org.joml.Vector4f(1, 0, 0, 0);
+        poseMat.transform(uVec);
+        Vec3 uDir = new Vec3(uVec.x(), uVec.y(), uVec.z()).normalize();
 
-        switch (facing) {
-            case NORTH:
-                normal = new Vec3(0, 0, -1);
-                uDir = new Vec3(-1, 0, 0);
-                break;
-            case SOUTH:
-                normal = new Vec3(0, 0, 1);
-                uDir = new Vec3(1, 0, 0);
-                break;
-            case WEST:
-                normal = new Vec3(-1, 0, 0);
-                uDir = new Vec3(0, 0, 1);
-                break;
-            case EAST:
-                normal = new Vec3(1, 0, 0);
-                uDir = new Vec3(0, 0, -1);
-                break;
-            default:
-                break;
-        }
+        org.joml.Vector4f vVec = new org.joml.Vector4f(0, 1, 0, 0);
+        poseMat.transform(vVec);
+        Vec3 vDir = new Vec3(vVec.x(), vVec.y(), vVec.z()).normalize();
+
+        org.joml.Vector4f nVec = new org.joml.Vector4f(0, 0, 1, 0);
+        poseMat.transform(nVec);
+        Vec3 normal = new Vec3(nVec.x(), nVec.y(), nVec.z()).normalize();
 
         Vec3 targetPos = new Vec3(wx, wy, wz);
         Vec3 rayDir = targetPos.subtract(camPos);
 
-        double dScreen = camPos.subtract(sCenter).dot(normal);
+        double dScreen = sCenterCameraRelative.scale(-1.0).dot(normal);
         double dTarget = rayDir.dot(normal);
 
         if (Math.abs(dTarget) < 1e-5) return;
         double t = -dScreen / dTarget;
         if (t <= 0) return;
 
-        Vec3 intersectPos = camPos.add(rayDir.scale(t));
-        Vec3 offset = intersectPos.subtract(sCenter);
+        Vec3 intersectPos = rayDir.scale(t);
+        Vec3 offset = intersectPos.subtract(sCenterCameraRelative);
 
         double uBlocks = offset.dot(uDir);
         double vBlocks = offset.dot(vDir);
@@ -278,18 +249,35 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
         double uCanvas = (backFace ? (0.5 - uBlocks / width) : (0.5 + uBlocks / width)) * CANVAS;
         double vCanvas = (0.5 - vBlocks / height) * CANVAS;
 
-        // Don't render if projected center is too far outside the canvas limits
         if (uCanvas < -200 || uCanvas > 300 || vCanvas < -200 || vCanvas > 300) return;
 
-        // Calculate clipping limits in local billboard space (centered at 0, 0 with size scaled by t)
         double minX = -uCanvas / t;
         double maxX = (100.0 - uCanvas) / t;
         double minY = -vCanvas / t;
         double maxY = (100.0 - vCanvas) / t;
 
+        Vec3 worldUp = new Vec3(0, 1, 0);
+        Vec3 worldUpOnPlane = worldUp.subtract(normal.scale(worldUp.dot(normal)));
+        double length = worldUpOnPlane.length();
+        float rollCorrection = 0.0f;
+        if (length > 1e-4) {
+            Vec3 vUpright = worldUpOnPlane.scale(1.0 / length);
+            double x = vUpright.dot(uDir);
+            double y = vUpright.dot(vDir);
+
+            double xGui = x;
+            double yGui = -y;
+
+            double theta = Math.atan2(yGui, xGui) + Math.PI / 2.0;
+            rollCorrection = (float) theta;
+        }
+
         g.pose().pushPose();
         g.pose().translate(uCanvas, vCanvas, 0);
-        // Scale billboard size with perspective projection factor t
+        if (Math.abs(rollCorrection) > 1e-4) {
+            g.pose().mulPose(com.mojang.math.Axis.ZP.rotation(rollCorrection));
+        }
+
         g.pose().scale((float) t, (float) t, 1.0f);
 
         for (JsonElement subItem : subGizmos) {
@@ -322,7 +310,6 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
 
             poseStack.translate(diffX, diffY, diffZ);
 
-            // Rotate to face the correct direction
             switch (facing) {
                 case SOUTH -> poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(180));
                 case WEST  -> poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(90));
@@ -336,6 +323,10 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
                 poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(180));
                 poseStack.translate(0, 0, 0.066);
             }
+
+            PoseStack centerPose = new PoseStack();
+            centerPose.last().pose().set(poseStack.last().pose());
+            centerPose.last().normal().set(poseStack.last().normal());
 
             float scaleX = (width - 0.05f) / 100.0f;
             float scaleY = (height - 0.05f) / 100.0f;
@@ -365,14 +356,14 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
                         g.pose().pushPose();
                         try {
                             g.pose().translate(0.0, 0.0, zOffset);
-                            renderProjected3DGizmos(obj, g, font, blockEntity, facing, width, height, backFace);
+                            renderProjected3DGizmos(obj, g, font, blockEntity, facing, width, height, backFace, centerPose);
                         } finally {
                             g.pose().popPose();
                         }
                     } else if (type.equals("camera_feed")) {
                         poseStack.pushPose();
                         try {
-                            // Move video feed back to middle thickness of screen (Z = 0)
+
                             poseStack.translate(0, 0, -7.0f);
                             String cacheKey = "radiologistics_screen_feed_" + blockEntity.getBlockPos().getX() + "_" + blockEntity.getBlockPos().getY() + "_" + blockEntity.getBlockPos().getZ() + "_" + (backFace ? "back" : "front");
                             com.radiologistics.create.gui.CameraFeedRenderer.render(obj, poseStack, buffer, cacheKey, packedLight, 0.0f, 100.0f, 0.0f, 100.0f);
@@ -382,7 +373,6 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
                     }
                 }
 
-                // Vignette completely removed as requested
             } finally {
                 g.pose().popPose();
             }
@@ -400,7 +390,6 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
         double tMin = 0.0;
         double tMax = 1.0;
 
-        // X-axis
         if (Math.abs(dx) < 1e-6) {
             if (start.x < minX || start.x > maxX) return false;
         } else {
@@ -410,7 +399,6 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
             tMax = Math.min(tMax, Math.max(t1, t2));
         }
 
-        // Y-axis
         if (Math.abs(dy) < 1e-6) {
             if (start.y < minY || start.y > maxY) return false;
         } else {
@@ -420,7 +408,6 @@ public class ScreenBlockEntityRenderer implements BlockEntityRenderer<ScreenBloc
             tMax = Math.min(tMax, Math.max(t1, t2));
         }
 
-        // Z-axis
         if (Math.abs(dz) < 1e-6) {
             if (start.z < minZ || start.z > maxZ) return false;
         } else {

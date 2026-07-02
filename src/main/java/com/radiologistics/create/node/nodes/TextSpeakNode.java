@@ -6,10 +6,6 @@ import net.minecraft.nbt.CompoundTag;
 
 import java.util.*;
 
-/**
- * "Text Stream" node — packages TTS text, volume and pitch into an audio stream descriptor
- * that an Audio Play node can consume. Does NOT speak or send packets itself.
- */
 public class TextSpeakNode extends AlgoNode {
 
     public TextSpeakNode(String id, double x, double y) {
@@ -77,7 +73,7 @@ public class TextSpeakNode extends AlgoNode {
         if (text == null || text.trim().isEmpty()) {
             return "en";
         }
-        
+
         int uk = 0;
         int ru = 0;
         int pl = 0;
@@ -91,18 +87,16 @@ public class TextSpeakNode extends AlgoNode {
 
         String lowerText = text.toLowerCase(java.util.Locale.ROOT);
 
-        // 1. Character-level scoring
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
-            
-            // Cyrillic auto-detection
+
             if (block == Character.UnicodeBlock.CYRILLIC) {
-                // Ukrainian specific
+
                 if (c == 'і' || c == 'ї' || c == 'є' || c == 'ґ' || c == 'І' || c == 'Ї' || c == 'Є' || c == 'Ґ') {
                     uk += 10;
                 }
-                // Russian specific
+
                 else if (c == 'ы' || c == 'э' || c == 'ъ' || c == 'ё' || c == 'Ы' || c == 'Э' || c == 'Ъ' || c == 'Ё') {
                     ru += 10;
                 }
@@ -111,84 +105,81 @@ public class TextSpeakNode extends AlgoNode {
                     ru += 1;
                 }
             }
-            // Japanese (Hiragana/Katakana)
+
             else if (block == Character.UnicodeBlock.HIRAGANA || block == Character.UnicodeBlock.KATAKANA) {
                 ja += 5;
             }
-            // CJK (Chinese / Japanese Kanji)
+
             else if (block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS) {
                 zh += 2;
                 ja += 1;
             }
-            // Polish specific characters
+
             else if (c == 'ą' || c == 'ć' || c == 'ę' || c == 'ł' || c == 'ń' || c == 'ó' || c == 'ś' || c == 'ź' || c == 'ż' ||
                      c == 'Ą' || c == 'Ć' || c == 'Ę' || c == 'Ł' || c == 'Ń' || c == 'Ó' || c == 'Ś' || c == 'Ź' || c == 'Ż') {
                 pl += 5;
             }
-            // German eszett
+
             else if (c == 'ß' || c == 'ẞ') {
                 de += 5;
             }
         }
 
-        // 2. Word-level scoring
         String[] words = lowerText.split("[\\s\\p{Punct}]+");
         for (String w : words) {
             if (w.isEmpty()) continue;
-            
-            // English
-            if (w.equals("the") || w.equals("and") || w.equals("that") || w.equals("this") || 
-                w.equals("with") || w.equals("have") || w.equals("you") || w.equals("not") || 
+
+            if (w.equals("the") || w.equals("and") || w.equals("that") || w.equals("this") ||
+                w.equals("with") || w.equals("have") || w.equals("you") || w.equals("not") ||
                 w.equals("but") || w.equals("are") || w.equals("for") || w.equals("was")) {
                 en += 5;
             }
-            // Ukrainian
-            if (w.equals("і") || w.equals("й") || w.equals("та") || w.equals("що") || 
-                w.equals("як") || w.equals("це") || w.equals("не") || w.equals("на") || 
+
+            if (w.equals("і") || w.equals("й") || w.equals("та") || w.equals("що") ||
+                w.equals("як") || w.equals("це") || w.equals("не") || w.equals("на") ||
                 w.equals("для") || w.equals("був") || w.equals("була") || w.equals("було")) {
                 uk += 5;
             }
-            // Russian
-            if (w.equals("и") || w.equals("что") || w.equals("как") || w.equals("это") || 
-                w.equals("не") || w.equals("на") || w.equals("для") || w.equals("был") || 
+
+            if (w.equals("и") || w.equals("что") || w.equals("как") || w.equals("это") ||
+                w.equals("не") || w.equals("на") || w.equals("для") || w.equals("был") ||
                 w.equals("была") || w.equals("было")) {
                 ru += 5;
             }
-            // German
-            if (w.equals("der") || w.equals("die") || w.equals("das") || w.equals("und") || 
-                w.equals("ist") || w.equals("ein") || w.equals("eine") || w.equals("nicht") || 
+
+            if (w.equals("der") || w.equals("die") || w.equals("das") || w.equals("und") ||
+                w.equals("ist") || w.equals("ein") || w.equals("eine") || w.equals("nicht") ||
                 w.equals("mit") || w.equals("von") || w.equals("zu") || w.equals("es") || w.equals("wie")) {
                 de += 5;
             }
-            // French
-            if (w.equals("le") || w.equals("la") || w.equals("les") || w.equals("et") || 
-                w.equals("est") || w.equals("un") || w.equals("une") || w.equals("dans") || 
+
+            if (w.equals("le") || w.equals("la") || w.equals("les") || w.equals("et") ||
+                w.equals("est") || w.equals("un") || w.equals("une") || w.equals("dans") ||
                 w.equals("pour") || w.equals("qui") || w.equals("que") || w.equals("avec")) {
                 fr += 5;
             }
-            // Spanish
-            if (w.equals("el") || w.equals("los") || w.equals("las") || w.equals("un") || 
-                w.equals("una") || w.equals("en") || w.equals("para") || w.equals("con") || 
+
+            if (w.equals("el") || w.equals("los") || w.equals("las") || w.equals("un") ||
+                w.equals("una") || w.equals("en") || w.equals("para") || w.equals("con") ||
                 w.equals("por") || w.equals("que")) {
                 es += 5;
             }
-            // Italian
-            if (w.equals("il") || w.equals("i") || w.equals("gli") || w.equals("le") || 
-                w.equals("un") || w.equals("una") || w.equals("in") || w.equals("per") || 
+
+            if (w.equals("il") || w.equals("i") || w.equals("gli") || w.equals("le") ||
+                w.equals("un") || w.equals("una") || w.equals("in") || w.equals("per") ||
                 w.equals("con") || w.equals("che") || w.equals("non") || w.equals("sono")) {
                 it += 5;
             }
-            // Polish
-            if (w.equals("w") || w.equals("na") || w.equals("z") || w.equals("do") || 
+
+            if (w.equals("w") || w.equals("na") || w.equals("z") || w.equals("do") ||
                 w.equals("jest") || w.equals("że") || w.equals("się") || w.equals("nie")) {
                 pl += 5;
             }
         }
 
-        // Find the language with the highest score (if above 0)
         String bestLang = "en";
         int maxScore = 0;
-        
+
         if (uk > maxScore) { maxScore = uk; bestLang = "uk"; }
         if (ru > maxScore) { maxScore = ru; bestLang = "ru"; }
         if (pl > maxScore) { maxScore = pl; bestLang = "pl"; }
@@ -198,7 +189,7 @@ public class TextSpeakNode extends AlgoNode {
         if (it > maxScore) { maxScore = it; bestLang = "it"; }
         if (ja > maxScore) { maxScore = ja; bestLang = "ja"; }
         if (zh > maxScore) { maxScore = zh; bestLang = "zh"; }
-        
+
         return bestLang;
     }
 }

@@ -25,7 +25,7 @@ public class WireItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, java.util.List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
         super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
-        
+
         boolean isShiftDown = false;
         if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             isShiftDown = ClientHelper.isShiftDown();
@@ -64,7 +64,7 @@ public class WireItem extends Item {
         } catch (ClassNotFoundException ignored) {}
 
         boolean isComputer = targetBe instanceof MainComputerBlockEntity;
-        boolean isModule = targetBe instanceof BaseModuleBlockEntity || isCannonMount;
+        boolean isModule = targetBe instanceof BaseModuleBlockEntity || targetBe instanceof com.radiologistics.create.block.ServoMotorBlockEntity || isCannonMount;
         boolean isDisplay = targetBe instanceof FlapDisplayBlockEntity;
         boolean isNixie = targetBe instanceof NixieTubeBlockEntity;
         boolean isDisplayLink = targetBe instanceof com.simibubi.create.content.redstone.displayLink.DisplayLinkBlockEntity;
@@ -82,13 +82,14 @@ public class WireItem extends Item {
                 selectPos = targetPos;
             } else if (targetBe instanceof BaseModuleBlockEntity) {
                 selectPos = ((BaseModuleBlockEntity) targetBe).getComputerPos();
+            } else if (targetBe instanceof com.radiologistics.create.block.ServoMotorBlockEntity) {
+                selectPos = ((com.radiologistics.create.block.ServoMotorBlockEntity) targetBe).getComputerPos();
             } else if (isCannonMount) {
                 selectPos = findComputerLinkedTo(targetPos);
-            } else { // display, nixie, display link
+            } else {
                 selectPos = findLinkingComputer(context.getLevel(), targetPos);
             }
 
-            // Fallback: if no computer is linked to this module/display/display link, select the block itself
             if (selectPos == null) {
                 selectPos = targetPos;
             }
@@ -103,11 +104,10 @@ public class WireItem extends Item {
             return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
         }
 
-        // Second click: process connection/disconnection relative to SelectedPos
         BlockPos selectedPos = BlockPos.of(tag.getLong("SelectedPos"));
 
         if (selectedPos.equals(targetPos)) {
-            // Clicked the selected block again: deselect
+
             net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA, stack, t -> {
                 t.remove("SelectedPos");
                 t.remove("LinkedComputer");
@@ -120,8 +120,11 @@ public class WireItem extends Item {
 
         BlockEntity selectedBe = context.getLevel().getBlockEntity(selectedPos);
         if (!(selectedBe instanceof MainComputerBlockEntity computer)) {
-            // Selected block is not a computer (or is gone): select the clicked block instead
-            BlockPos selectPos = isComputer ? targetPos : (isModule ? ((BaseModuleBlockEntity) targetBe).getComputerPos() : findLinkingComputer(context.getLevel(), targetPos));
+
+            BlockPos selectPos = isComputer ? targetPos :
+                (targetBe instanceof BaseModuleBlockEntity ? ((BaseModuleBlockEntity) targetBe).getComputerPos() :
+                (targetBe instanceof com.radiologistics.create.block.ServoMotorBlockEntity ? ((com.radiologistics.create.block.ServoMotorBlockEntity) targetBe).getComputerPos() :
+                findLinkingComputer(context.getLevel(), targetPos)));
             if (selectPos == null) {
                 selectPos = targetPos;
             }
@@ -135,7 +138,6 @@ public class WireItem extends Item {
             return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
         }
 
-        // If the clicked block is another computer, switch selection to it
         if (isComputer) {
             net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA, stack, t -> {
                 t.putLong("SelectedPos", targetPos.asLong());
@@ -146,8 +148,9 @@ public class WireItem extends Item {
             return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
         }
 
-        // Clicked block is a module/display: connect or disconnect
-        double distSq = computer.getBlockPos().distSqr(targetPos);
+        net.minecraft.world.phys.Vec3 computerWorldPos = MainComputerBlockEntity.getWorldPos(context.getLevel(), computer.getBlockPos());
+        net.minecraft.world.phys.Vec3 targetWorldPos = MainComputerBlockEntity.getWorldPos(context.getLevel(), targetPos);
+        double distSq = computerWorldPos.distanceToSqr(targetWorldPos);
         if (distSq > 100.0) {
             return InteractionResult.FAIL;
         }
@@ -158,9 +161,9 @@ public class WireItem extends Item {
                 if (mState.getBlock() instanceof com.radiologistics.create.block.BaseModuleBlock moduleBlock) {
                     String type = moduleBlock.getModuleType();
                     if (computer.getBlockPos().equals(module.getComputerPos())) {
-                        // Already connected to this computer: disconnect!
-                        if (type.equals("jammer")) {
-                            computer.unlinkModule("jammer", targetPos);
+
+                        if (type.equals("jammer") || type.equals("gyroscope") || type.equals("screen")) {
+                            computer.unlinkModule(type, targetPos);
                         } else {
                             computer.unlinkModule(type);
                         }
@@ -171,12 +174,12 @@ public class WireItem extends Item {
                         module.setChanged();
                         player.displayClientMessage(Component.literal("Module disconnected"), true);
                     } else {
-                        // Not connected, or connected to another computer: connect!
+
                         if (module.getComputerPos() != null) {
                             BlockEntity prevCompBe = context.getLevel().getBlockEntity(module.getComputerPos());
                             if (prevCompBe instanceof MainComputerBlockEntity prevComputer) {
-                                if (type.equals("jammer")) {
-                                    prevComputer.unlinkModule("jammer", targetPos);
+                                if (type.equals("jammer") || type.equals("gyroscope") || type.equals("screen")) {
+                                    prevComputer.unlinkModule(type, targetPos);
                                 } else {
                                     prevComputer.unlinkModule(type);
                                 }
@@ -188,6 +191,28 @@ public class WireItem extends Item {
                             module.setChanged();
                             player.displayClientMessage(Component.literal("Module connected"), true);
                         }
+                    }
+                }
+            } else if (targetBe instanceof com.radiologistics.create.block.ServoMotorBlockEntity module) {
+                if (computer.getBlockPos().equals(module.getComputerPos())) {
+
+                    computer.unlinkModule("servo_motor", targetPos);
+                    module.setComputerPos(null);
+                    module.setChanged();
+                    player.displayClientMessage(Component.literal("Module disconnected"), true);
+                } else {
+
+                    if (module.getComputerPos() != null) {
+                        BlockEntity prevCompBe = context.getLevel().getBlockEntity(module.getComputerPos());
+                        if (prevCompBe instanceof MainComputerBlockEntity prevComputer) {
+                            prevComputer.unlinkModule("servo_motor", targetPos);
+                        }
+                    }
+                    boolean success = computer.linkModule("servo_motor", targetPos);
+                    if (success) {
+                        module.setComputerPos(computer.getBlockPos());
+                        module.setChanged();
+                        player.displayClientMessage(Component.literal("Module connected"), true);
                     }
                 }
             } else if (isCannonMount) {

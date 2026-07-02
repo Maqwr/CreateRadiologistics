@@ -21,7 +21,7 @@ public class VirtualLinkable implements IRedstoneLinkable {
         this.computer = computer;
         this.nodeId = nodeId;
         this.isListening = isListening;
-        
+
         Item item1 = BuiltInRegistries.ITEM.get(ResourceLocation.parse(freq1));
         Item item2 = BuiltInRegistries.ITEM.get(ResourceLocation.parse(freq2));
         this.networkKey = Couple.create(Frequency.of(new ItemStack(item1)), Frequency.of(new ItemStack(item2)));
@@ -53,7 +53,7 @@ public class VirtualLinkable implements IRedstoneLinkable {
     public void setReceivedStrength(int strength) {
         this.receivedStrength = strength;
         if (isListening) {
-            computer.evaluateGraph(); // Re-evaluate when link inputs change!
+            computer.evaluateGraph();
         }
     }
 

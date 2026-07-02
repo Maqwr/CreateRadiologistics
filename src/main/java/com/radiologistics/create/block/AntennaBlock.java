@@ -55,7 +55,7 @@ public class AntennaBlock extends BaseModuleBlock {
     private BlockState updateSegmentType(Level level, BlockPos pos, BlockState state) {
         boolean hasBelow = level.getBlockState(pos.below()).getBlock() instanceof AntennaBlock;
         boolean hasAbove = level.getBlockState(pos.above()).getBlock() instanceof AntennaBlock;
-        
+
         AntennaSegmentType type;
         if (!hasBelow) {
             type = AntennaSegmentType.BASE;
@@ -88,7 +88,9 @@ public class AntennaBlock extends BaseModuleBlock {
             if (placer instanceof net.minecraft.server.level.ServerPlayer player) {
                 BlockPos targetPos = com.radiologistics.create.network.PlayerLinkManager.getPendingLink(player.getUUID());
                 if (targetPos != null) {
-                    double distSq = pos.distSqr(targetPos);
+                    net.minecraft.world.phys.Vec3 p1 = com.radiologistics.create.block.MainComputerBlockEntity.getWorldPos(level, pos);
+                    net.minecraft.world.phys.Vec3 p2 = com.radiologistics.create.block.MainComputerBlockEntity.getWorldPos(level, targetPos);
+                    double distSq = p1.distanceToSqr(p2);
                     if (distSq > 100.0) {
                         player.displayClientMessage(Component.literal("too far").withStyle(ChatFormatting.RED), true);
                     } else {

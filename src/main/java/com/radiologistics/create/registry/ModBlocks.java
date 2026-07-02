@@ -69,4 +69,16 @@ public class ModBlocks {
             .strength(3.0f)
             .requiresCorrectToolForDrops()
             .noOcclusion()));
+
+    public static final DeferredBlock<Block> SERVO_MOTOR = BLOCKS.register("servo_motor",
+        () -> new com.radiologistics.create.block.ServoMotorBlock(BlockBehaviour.Properties.of()
+            .strength(3.0f)
+            .requiresCorrectToolForDrops()
+            .noOcclusion()));
+
+    public static final DeferredBlock<Block> SMART_OPTICAL_SENSOR = BLOCKS.register("smart_optical_sensor",
+        () -> new com.radiologistics.create.block.SmartOpticalSensorBlock(BlockBehaviour.Properties.of()
+            .strength(3.0f)
+            .requiresCorrectToolForDrops()
+            .noOcclusion()));
 }

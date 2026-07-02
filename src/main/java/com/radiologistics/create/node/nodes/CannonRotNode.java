@@ -69,9 +69,7 @@ public class CannonRotNode extends AlgoNode {
                             float adjustedYaw = net.minecraft.util.Mth.wrapDegrees(yaw);
                             return String.valueOf(adjustedYaw);
                         }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    } catch (Exception ignored) {}
                 }
             }
         }

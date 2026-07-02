@@ -6,7 +6,7 @@ import net.minecraft.core.Vec3i;
 public class SableCompanion {
     public static SableCompanion INSTANCE = new SableCompanion();
     
-    // We will set this dynamically during testing
+    
     public static SubLevelAccess mockSubLevelAccess = null;
 
     public Object getContaining(Level level, Vec3i pos) {

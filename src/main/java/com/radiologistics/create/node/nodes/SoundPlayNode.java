@@ -6,11 +6,6 @@ import net.minecraft.nbt.CompoundTag;
 
 import java.util.*;
 
-/**
- * "Link Stream" node — builds an audio stream descriptor from a URL, volume and pitch,
- * then outputs it on the "stream" port for an Audio Play node to consume.
- * Does NOT send any packets or play audio itself.
- */
 public class SoundPlayNode extends AlgoNode {
 
     public SoundPlayNode(String id, double x, double y) {
@@ -46,7 +41,7 @@ public class SoundPlayNode extends AlgoNode {
         if (!"stream".equalsIgnoreCase(outputPort)) return null;
 
         Object linkVal = inputValues.get("link");
-        String link = linkVal != null ? String.valueOf(linkVal).trim() : "";
+        String link = linkVal != null ? com.radiologistics.create.Radiologistics.rewriteUrl(String.valueOf(linkVal)) : "";
 
         Object volumeVal = inputValues.get("volume");
         double volume = 1.0;

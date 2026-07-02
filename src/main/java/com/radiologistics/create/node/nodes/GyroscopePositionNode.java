@@ -9,10 +9,14 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import java.util.*;
 
 public class GyroscopePositionNode extends AlgoNode {
+    private int gyroIndex = 0;
 
     public GyroscopePositionNode(String id, double x, double y) {
         super(id, x, y);
     }
+
+    public int getGyroIndex() { return gyroIndex; }
+    public void setGyroIndex(int index) { this.gyroIndex = index; }
 
     @Override
     public String getType() {
@@ -31,22 +35,30 @@ public class GyroscopePositionNode extends AlgoNode {
 
     @Override
     public CompoundTag saveProperties() {
-        return new CompoundTag();
+        CompoundTag tag = new CompoundTag();
+        tag.putInt("gyroIndex", gyroIndex);
+        return tag;
     }
 
     @Override
-    public void loadProperties(CompoundTag tag) {}
+    public void loadProperties(CompoundTag tag) {
+        if (tag.contains("gyroIndex")) {
+            gyroIndex = tag.getInt("gyroIndex");
+        } else {
+            gyroIndex = 0;
+        }
+    }
 
     @Override
     public Object evaluate(String outputPort, Map<String, Object> inputValues, EvaluationContext context) {
         if (context.getComputer() != null) {
-            BlockPos pos = context.getComputer().getModulePos("gyroscope");
+            BlockPos pos = context.getComputer().getModulePos("gyroscope_" + gyroIndex);
             if (pos != null && context.getLevel() != null) {
                 BlockEntity be = com.radiologistics.create.block.MainComputerBlockEntity.resolveBlockEntity(context.getLevel(), pos);
                 if (be != null) {
                     BlockPos gyroPos = be.getBlockPos();
                     net.minecraft.world.level.Level level = be.getLevel() != null ? be.getLevel() : context.getLevel();
-                    
+
                     try {
                         Class<?> companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
                         Object companion = companionClass.getField("INSTANCE").get(null);

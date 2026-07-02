@@ -20,20 +20,14 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.*;
 
-/**
- * Node editor screen — all rendering is done in screen-space coordinates
- * (no g.pose().scale()) to avoid NeoForge fill-rendering issues with pose transforms.
- */
 public class NodeEditorScreen extends Screen {
 
-    // ─── Layout ───────────────────────────────────────────────────────────────
     private static final int SIDEBAR_W  = 128;
-    private static final int NODE_W     = 130; // canvas-space width of a node
-    private static final int HDR_H      = 16;  // canvas-space header height
-    private static final int ROW_H      = 14;  // canvas-space port row height
-    private static final int PROP_H     = 18;  // canvas-space property row height
+    private static final int NODE_W     = 130;
+    private static final int HDR_H      = 16;
+    private static final int ROW_H      = 14;
+    private static final int PROP_H     = 18;
 
-    // ─── Material Themes (Create Mod Style) ──────────────────────────────────
     private static class MaterialTheme {
         final int primary;
         final int highlight;
@@ -82,8 +76,8 @@ public class NodeEditorScreen extends Screen {
             case "link_input","link_output" -> THEME_BRASS;
             case "gyroscope","gyroscope_position" -> THEME_OBSIDIAN;
             case "antenna_output" -> THEME_ZINC;
-            case "variable","set_variable"-> THEME_ROSE;
-            case "active_target"          -> THEME_OBSIDIAN;
+            case "variable","set_variable","get_list","set_list"-> THEME_ROSE;
+            case "active_target","detected_objects","custom_target" -> THEME_OBSIDIAN;
             case "bool_viewer"            -> THEME_COPPER;
             case "number_viewer"          -> THEME_ANDESITE;
             case "text_viewer"            -> THEME_BRASS;
@@ -91,15 +85,13 @@ public class NodeEditorScreen extends Screen {
             case "text_split","text_join" -> THEME_BRASS;
             case "text_speak","sound_play","microphone","audio_play" -> THEME_BRASS;
             case "helmet_pos","helmet_rotation","helmet_screen" -> THEME_BRASS;
-            case "camera","screen","display_board" -> THEME_BRASS;
+            case "camera","screen","display_board","camera_screen","servo_control","servo_angle" -> THEME_BRASS;
             case "cannon_rot"             -> THEME_OBSIDIAN;
             case "gizmos_2d","gizmos_3d","gizmos_combine","gizmos_view" -> THEME_COPPER;
             default                       -> THEME_COMMENT;
         };
     }
 
-
-    // ─── Sidebar card catalogue ───────────────────────────────────────────────
     private static final String[][] CONSTANT_CARDS = {
         {"Bool",       "bool",            "T/F"},
         {"Comment",    "comment",         "//"},
@@ -136,6 +128,7 @@ public class NodeEditorScreen extends Screen {
         {"Deg Vector", "degree_vector",   "∠"},
         {"Pos to rot", "pos_to_rot",      "⇄"},
         {"Rot to pos", "rot_to_pos",      "⇆"},
+        {"Custom Node", "custom",         "f(x)"},
     };
 
     private static final String[][] TEXT_CARDS = {
@@ -160,6 +153,8 @@ public class NodeEditorScreen extends Screen {
         }
         if (connectedModules.contains("network_controller")) {
             list.add(new String[]{"Active Target", "active_target", "⌖"});
+            list.add(new String[]{"Detected Objects", "detected_objects", "⌖"});
+            list.add(new String[]{"Custom Target", "custom_target", "🎯"});
         }
         return list;
     }
@@ -179,6 +174,15 @@ public class NodeEditorScreen extends Screen {
         if (connectedModules.contains("gyroscope")) {
             list.add(new String[]{"Gyroscope", "gyroscope", "⊕"});
             list.add(new String[]{"Gyro Position", "gyroscope_position", "⛖"});
+        }
+        return list;
+    }
+
+    private List<String[]> getServoCards() {
+        List<String[]> list = new ArrayList<>();
+        if (connectedModules.contains("servo_motor")) {
+            list.add(new String[]{"Servo Ctrl", "servo_control", "⟳"});
+            list.add(new String[]{"Servo Angle", "servo_angle", "⟲"});
         }
         return list;
     }
@@ -215,6 +219,9 @@ public class NodeEditorScreen extends Screen {
         if (connectedModules.contains("cassette_reader")) {
             list.add(new String[]{"Cassette Reader", "camera", "📼"});
         }
+        if (connectedModules.contains("screen") && connectedModules.contains("cassette_reader")) {
+            list.add(new String[]{"Camera Screen", "camera_screen", "📹"});
+        }
         List<String> sortedDisplayBoards = connectedModules.stream()
                 .filter(m -> m.startsWith("display_board_"))
                 .sorted()
@@ -249,15 +256,14 @@ public class NodeEditorScreen extends Screen {
         return list;
     }
 
-
-    // ─── Data ────────────────────────────────────────────────────────────────
     private final BlockPos   pos;
-    private final NodeGraph  graph;
+    public final NodeGraph  graph;
     private final Set<String> connectedModules = new HashSet<>();
+    private final Set<String> visibleFallbackPorts = new HashSet<>();
+    private final Map<String, Float> fallbackAnimWidths = new HashMap<>();
     private int jammerCount = 0;
     private final List<String> nodeOrder = new ArrayList<>();
 
-    // ─── Viewport ─────────────────────────────────────────────────────────────
     private double panX = 0, panY = 0, zoom = 1.0;
 
     private static final net.minecraft.resources.ResourceLocation BACKGROUND_TEX = net.minecraft.resources.ResourceLocation.parse("radiologistics:textures/gui/background.png");
@@ -289,6 +295,117 @@ public class NodeEditorScreen extends Screen {
         return count > 0 ? count : this.jammerCount;
     }
 
+    private List<Integer> getConnectedServoIndices() {
+        List<Integer> list = new ArrayList<>();
+        if (this.activeComputer != null) {
+            for (String key : this.activeComputer.getLinkedModules().keySet()) {
+                if (key.startsWith("servo_motor_")) {
+                    try {
+                        list.add(Integer.parseInt(key.substring("servo_motor_".length())));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        } else {
+            for (String key : this.connectedModules) {
+                if (key.startsWith("servo_motor_")) {
+                    try {
+                        list.add(Integer.parseInt(key.substring("servo_motor_".length())));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        Collections.sort(list);
+        return list;
+    }
+
+    private List<Integer> getConnectedGyroIndices() {
+        List<Integer> list = new ArrayList<>();
+        if (this.activeComputer != null) {
+            for (String key : this.activeComputer.getLinkedModules().keySet()) {
+                if (key.startsWith("gyroscope_")) {
+                    try {
+                        list.add(Integer.parseInt(key.substring("gyroscope_".length())));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        } else {
+            for (String key : this.connectedModules) {
+                if (key.startsWith("gyroscope_")) {
+                    try {
+                        list.add(Integer.parseInt(key.substring("gyroscope_".length())));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        Collections.sort(list);
+        return list;
+    }
+
+    private List<Integer> getConnectedScreenIndices() {
+        List<Integer> list = new ArrayList<>();
+        if (this.activeComputer != null) {
+            for (String key : this.activeComputer.getLinkedModules().keySet()) {
+                if (key.startsWith("screen_")) {
+                    try {
+                        list.add(Integer.parseInt(key.substring("screen_".length())));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        } else {
+            for (String key : this.connectedModules) {
+                if (key.startsWith("screen_")) {
+                    try {
+                        list.add(Integer.parseInt(key.substring("screen_".length())));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        Collections.sort(list);
+        return list;
+    }
+
+    private boolean isBooleanPort(AlgoNode node, String port) {
+        String lowerPort = port.toLowerCase();
+        if (lowerPort.equals("cond") || lowerPort.equals("active") || lowerPort.equals("enable")
+            || lowerPort.equals("enabled") || lowerPort.equals("play") || lowerPort.equals("stop")
+            || lowerPort.equals("trigger") || lowerPort.equals("loop")) {
+            return true;
+        }
+        if (node instanceof com.radiologistics.create.node.nodes.AndNode
+            || node instanceof com.radiologistics.create.node.nodes.OrNode
+            || node instanceof com.radiologistics.create.node.nodes.InvertNode) {
+            return true;
+        }
+        String val = node.getDefaultPortValues().getOrDefault(port, "").toLowerCase();
+        return val.equals("true") || val.equals("false");
+    }
+
+    private void hideEmptyFallbackPorts(String exemptKey) {
+        List<String> toRemove = new ArrayList<>();
+        for (String key : visibleFallbackPorts) {
+            if (key.equals(exemptKey)) continue;
+            int colon = key.indexOf(':');
+            if (colon != -1) {
+                String nid = key.substring(0, colon);
+                String pn = key.substring(colon + 1);
+
+                boolean editingPort = nid.equals(inlineNodeId) && inlineActive && ("port_val:" + pn).equals(inlineField);
+                if (!editingPort) {
+                    AlgoNode node = graph.getNodes().get(nid);
+                    if (node != null) {
+                        String val = node.getDefaultPortValues().getOrDefault(pn, "");
+                        if (val.isEmpty()) {
+                            toRemove.add(key);
+                        }
+                    } else {
+                        toRemove.add(key);
+                    }
+                }
+            }
+        }
+        visibleFallbackPorts.removeAll(toRemove);
+    }
+
     private void clampPan() {
         int viewportW = this.width - SIDEBAR_W;
         int viewportH = this.height - 28;
@@ -312,43 +429,67 @@ public class NodeEditorScreen extends Screen {
         }
     }
 
-    // ─── Selection ────────────────────────────────────────────────────────────
     private AlgoNode selectedNode = null;
     private NodeLink  selectedLink = null;
     private String    selectedVar  = null;
     private final Set<String> selectedNodeIds = new HashSet<>();
 
-    // ─── Undo/Redo History ────────────────────────────────────────────────────
     private final List<CompoundTag> undoHistory = new ArrayList<>();
+    private final List<CompoundTag> redoHistory = new ArrayList<>();
     private static final int MAX_UNDO_STATES = 50;
+    private boolean isDirty = false;
+    private int autosaveTimer = 0;
 
-    // ─── Node dragging ────────────────────────────────────────────────────────
+    private CompoundTag clipboardTag = null;
+    private int pasteOffsetCount = 0;
+
+    private boolean isBoxSelecting = false;
+    private double boxSelectStartX = 0, boxSelectStartY = 0;
+    private double boxSelectEndX = 0, boxSelectEndY = 0;
+
+    private boolean showQuickSearch = false;
+    private double quickSearchX = 0, quickSearchY = 0;
+    private EditBox quickSearchBox;
+    private final List<String[]> quickSearchMatches = new ArrayList<>();
+
+    private static class SearchableNode {
+        final String name;
+        final String type;
+        final String icon;
+        SearchableNode(String name, String type, String icon) {
+            this.name = name;
+            this.type = type;
+            this.icon = icon;
+        }
+    }
+
+    private boolean showHelpOverlay = false;
+
     private AlgoNode dragging   = null;
     private double   dragOffX, dragOffY;
     private CompoundTag dragStartState = null;
 
-    // ─── Canvas panning ───────────────────────────────────────────────────────
     private boolean isPanning  = false;
     private double  panStartX, panStartY;
 
-    // ─── Wire dragging ────────────────────────────────────────────────────────
     private String  wireSrcId  = null;
     private String  wireSrcPort = null;
     private boolean wireSrcOut = false;
-    private double  wireDragCX, wireDragCY; // canvas-space drag tip
+    private double  wireDragCX, wireDragCY;
 
-    // ─── Sidebar ──────────────────────────────────────────────────────────────
     private double leftScrollY = 0;
 
-    // ─── Inline editing ───────────────────────────────────────────────────────
     private EditBox inlineBox;
     private String  inlineNodeId = null;
     private String  inlineField  = null;
     private String  inlineVarName = null;
     private boolean inlineActive = false;
+    private long lastNodeClickTime = 0;
+    private double lastNodeClickX = 0;
+    private double lastNodeClickY = 0;
+    private final java.util.Set<String> expandedTextNodes = new java.util.HashSet<>();
     private com.radiologistics.create.block.MainComputerBlockEntity activeComputer = null;
 
-    // ─── Ponder State Fields ──────────────────────────────────────────────────
     private boolean  wKeyDown                 = false;
     private boolean  wKeyReleasedSinceLastClose = true;
     private long     ponderOpenTime           = 0;
@@ -356,14 +497,14 @@ public class NodeEditorScreen extends Screen {
     private String   ponderHoveredType        = null;
     private long     ponderHoldStart          = 0;
     private int      ponderHoveredCardY       = -1;
-    
+
     private boolean  ponderOpen               = false;
     private String   ponderOpenType           = null;
     private double   ponderTimelineElapsedTime = 0.0;
     private long     ponderLastUpdateNano     = 0;
     private boolean  ponderPaused             = false;
     private boolean  isScrubberDragging       = false;
-    
+
     private boolean  renderingPonderScene     = false;
     private List<PonderWire> currentPonderWires = new ArrayList<>();
     private final List<PonderChapter> currentPonderChapters = new ArrayList<>();
@@ -372,10 +513,9 @@ public class NodeEditorScreen extends Screen {
     private String   lastHoveredSidebarType   = null;
     private int      lastHoveredSidebarY      = -1;
     private AlgoNode ponderOpenNode           = null;
-    
+
     private static final double TOTAL_TIMELINE_DURATION_MS = 24000.0;
 
-    // ─── File Dialog ──────────────────────────────────────────────────────────
     private boolean showFileDialog = false;
     private boolean fileDialogExport = true;
     private String fileDialogError = "";
@@ -387,11 +527,9 @@ public class NodeEditorScreen extends Screen {
     private boolean draggingSchemeScrollbar = false;
     private boolean draggingSidebarScrollbar = false;
 
-    // ─── Hotbar ───────────────────────────────────────────────────────────────
     private int activeFreqSlot = 0;
     private boolean initializedPan = false;
 
-    // ─────────────────────────────────────────────────────────────────────────
     public NodeEditorScreen(BlockPos pos, NodeGraph graph, CompoundTag graphNBT) {
         super(Component.literal("Node Editor"));
         this.pos   = pos;
@@ -403,8 +541,7 @@ public class NodeEditorScreen extends Screen {
         if (graphNBT.contains("jammerCount")) {
             this.jammerCount = graphNBT.getInt("jammerCount");
         }
-        
-        // Shift old top-left graphs to the center of the 5120x3200 canvas
+
         double maxX = 0;
         double maxY = 0;
         for (AlgoNode node : graph.getNodes().values()) {
@@ -418,7 +555,6 @@ public class NodeEditorScreen extends Screen {
         }
     }
 
-    // ─── Init ─────────────────────────────────────────────────────────────────
     @Override
     protected void init() {
         super.init();
@@ -434,32 +570,59 @@ public class NodeEditorScreen extends Screen {
         }
         clampPan();
 
-        // Save / Cancel / Export / Import buttons are drawn manually in Create style
-
-        // Inline EditBox — starts off-screen; repositioned when a property is clicked
         inlineBox = new EditBox(this.font, -600, -600, 110, 12, Component.empty());
         inlineBox.setMaxLength(256);
         inlineBox.visible = false;
         inlineBox.setBordered(false);
         inlineBox.setResponder(this::onInlineChange);
         this.addRenderableWidget(inlineBox);
+
+        quickSearchBox = new EditBox(this.font, -600, -600, 120, 12, Component.empty());
+        quickSearchBox.setMaxLength(32);
+        quickSearchBox.visible = false;
+        quickSearchBox.setBordered(false);
+        quickSearchBox.setTextColor(0x00000000);
+        quickSearchBox.setResponder(this::onQuickSearchChange);
+        this.addRenderableWidget(quickSearchBox);
     }
 
-    // ─── Screen background ────────────────────────────────────────────────────
+    @Override
+    public void tick() {
+        super.tick();
+        if (isDirty && dragging == null && isPanning == false && !isBoxSelecting) {
+            autosaveTimer++;
+            if (autosaveTimer >= 40) {
+                autosave();
+            }
+        }
+    }
+
+    private void autosave() {
+        if (isDirty) {
+            PacketDistributor.sendToServer(new SaveComputerGraphPacket(pos, graph.toNBT()));
+            isDirty = false;
+            autosaveTimer = 0;
+        }
+    }
+
+    @Override
+    public void onClose() {
+        autosave();
+        super.onClose();
+    }
+
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
-        // Do nothing to prevent super.render from overdrawing our custom UI
+
     }
 
-    // ─── Main render ──────────────────────────────────────────────────────────
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         lastMouseX = mx;
         lastMouseY = my;
 
-        // Read physical W key state using GLFW to ensure reliability, also check bound key
         long windowHandle = net.minecraft.client.Minecraft.getInstance().getWindow().getWindow();
-        boolean wPhysicallyDown = com.mojang.blaze3d.platform.InputConstants.isKeyDown(windowHandle, 87); // 87 is GLFW_KEY_W
+        boolean wPhysicallyDown = com.mojang.blaze3d.platform.InputConstants.isKeyDown(windowHandle, 87);
         try {
             int boundKey = net.minecraft.client.Minecraft.getInstance().options.keyUp.getKey().getValue();
             if (boundKey > 0 && boundKey < 500) {
@@ -473,7 +636,6 @@ public class NodeEditorScreen extends Screen {
 
         wKeyDown = wPhysicallyDown && !inlineActive && !showFileDialog && wKeyReleasedSinceLastClose;
 
-        // Tick timeline
         if (ponderOpen) {
             long now = System.nanoTime();
             if (ponderLastUpdateNano == 0) {
@@ -491,13 +653,12 @@ public class NodeEditorScreen extends Screen {
             ponderLastUpdateNano = 0;
         }
 
-        // Handle W-key hover validation / detection / invalidation
         if (wKeyDown && !ponderOpen) {
-            // If we don't have a hovered node or type yet, try to detect one!
+
             if (ponderHoveredNode == null && ponderHoveredType == null) {
                 detectPonderHover(mx, my);
             }
-            
+
             boolean valid = false;
             if (ponderHoveredNode != null) {
                 double cmx = toCanvasX(mx);
@@ -525,7 +686,6 @@ public class NodeEditorScreen extends Screen {
             ponderHoveredCardY = -1;
         }
 
-        // Automatically open ponder when hold reaches 1 second (1000ms)
         if (ponderHoldStart > 0 && !ponderOpen) {
             double elapsed = System.currentTimeMillis() - ponderHoldStart;
             if (elapsed >= 1000.0) {
@@ -541,42 +701,26 @@ public class NodeEditorScreen extends Screen {
                 ponderHoveredType = null;
                 ponderHoldStart = 0;
                 ponderHoveredCardY = -1;
-                
+
                 wKeyDown = false;
             }
         }
 
-        // Draw the background manually at the start
         g.fill(0, 0, this.width, this.height, 0xFF0C0C0C);
 
-        // Real-time client-side graph evaluation for viewer nodes
         try {
             net.minecraft.client.player.LocalPlayer player = net.minecraft.client.Minecraft.getInstance().player;
             net.minecraft.world.level.Level level = player != null ? player.level() : net.minecraft.client.Minecraft.getInstance().level;
-            
-            // Try to find the computer block entity on the client
+
             net.minecraft.world.level.block.entity.BlockEntity be = null;
             if (level != null && this.pos != null) {
-                be = level.getBlockEntity(this.pos);
-                if (be == null) {
-                    // Check if it's inside a sublevel using Sable Companion
-                    try {
-                        Class<?> companionClass = Class.forName("dev.ryanhcode.sable.companion.SableCompanion");
-                        Object companion = companionClass.getField("INSTANCE").get(null);
-                        java.lang.reflect.Method getContainingMethod = companionClass.getMethod("getContaining", net.minecraft.world.level.Level.class, net.minecraft.core.Vec3i.class);
-                        Object subLevelAccess = getContainingMethod.invoke(companion, level, this.pos);
-                        if (subLevelAccess instanceof net.minecraft.world.level.Level subLevel) {
-                            be = subLevel.getBlockEntity(this.pos);
-                            level = subLevel;
-                        }
-                    } catch (Exception ignored) {}
-                }
+                be = com.radiologistics.create.block.MainComputerBlockEntity.resolveBlockEntity(level, this.pos);
             }
-            
-            com.radiologistics.create.block.MainComputerBlockEntity computer = 
+
+            com.radiologistics.create.block.MainComputerBlockEntity computer =
                 (be instanceof com.radiologistics.create.block.MainComputerBlockEntity mc) ? mc : null;
             this.activeComputer = computer;
-                
+
             this.graph.evaluate(new com.radiologistics.create.node.EvaluationContext(
                 level,
                 this.pos,
@@ -585,32 +729,26 @@ public class NodeEditorScreen extends Screen {
             ));
         } catch (Exception ignored) {}
 
-        // ── Canvas background (right side of sidebar) ─────────────────────────
         int cx0 = SIDEBAR_W, cy0 = 0, cx1 = this.width, cy1 = this.height;
-        g.fill(cx0, cy0, cx1, cy1, 0xFF0D141C); // Very dark navy behind canvas viewport
+        g.fill(cx0, cy0, cx1, cy1, 0xFF0D141C);
         g.flush();
 
-        // Viewport frustum culling boundaries in canvas-space
         double minCX = -panX / zoom;
         double maxCX = (this.width - SIDEBAR_W - panX) / zoom;
         double minCY = -panY / zoom;
         double maxCY = (this.height - 28 - panY) / zoom;
 
-        // ── Canvas area (under scaled pose stack) ─────────────────────────────
         g.pose().pushPose();
         g.pose().translate(panX + SIDEBAR_W, panY, 0);
         g.pose().scale((float)zoom, (float)zoom, 1.0f);
 
-        // Create-style warm andesite grid background
         g.pose().pushPose();
         g.pose().translate(0, 0, 0.5f);
-        g.fill(0, 0, 5120, 3200, 0xFF2A2826); // Warm dark andesite gray
+        g.fill(0, 0, 5120, 3200, 0xFF2A2826);
         drawCreateGridAndRivetPatterns(g);
         g.flush();
         g.pose().popPose();
 
-        // Wires, Nodes and Wire-drag preview
-        // Wires (drawn UNDER nodes)
         g.pose().pushPose();
         g.pose().translate(0, 0, 5.0f);
         for (NodeLink link : graph.getLinks()) {
@@ -619,8 +757,7 @@ public class NodeEditorScreen extends Screen {
             if (from == null || to == null) continue;
             double[] op = portCanvasPos(from, link.fromPort(), true);
             double[] ip = portCanvasPos(to,   link.toPort(),   false);
-            
-            // Cull off-screen wires with a 10px buffer
+
             double wx1 = Math.min(op[0], ip[0]) - 10;
             double wx2 = Math.max(op[0], ip[0]) + 10;
             double wy1 = Math.min(op[1], ip[1]) - 10;
@@ -634,13 +771,12 @@ public class NodeEditorScreen extends Screen {
         g.flush();
         g.pose().popPose();
 
-        // Nodes (render in Z-order)
         float z = 10.0f;
         for (String id : nodeOrder) {
             AlgoNode node = graph.getNodes().get(id);
             if (node != null) {
                 int nh = nodeHeight(node);
-                // Cull off-screen nodes
+
                 if (node.getX() + NODE_W >= minCX && node.getX() <= maxCX &&
                     node.getY() + nh >= minCY && node.getY() <= maxCY) {
                     renderNode(g, node, z);
@@ -649,7 +785,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // Wire-drag preview (drawn ABOVE nodes)
         if (wireSrcId != null) {
             AlgoNode src = graph.getNodes().get(wireSrcId);
             if (src != null) {
@@ -668,46 +803,58 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // Flush rendering before popping the pose stack
+        if (isBoxSelecting) {
+            g.pose().pushPose();
+            g.pose().translate(0, 0, z + 5.0f);
+            com.mojang.blaze3d.systems.RenderSystem.disableDepthTest();
+            double minX = Math.min(boxSelectStartX, boxSelectEndX);
+            double maxX = Math.max(boxSelectStartX, boxSelectEndX);
+            double minY = Math.min(boxSelectStartY, boxSelectEndY);
+            double maxY = Math.max(boxSelectStartY, boxSelectEndY);
+            g.fill((int)minX, (int)minY, (int)maxX, (int)maxY, 0x224F85C8);
+            int border = 0x884F85C8;
+            g.fill((int)minX, (int)minY, (int)maxX, (int)minY + 1, border);
+            g.fill((int)minX, (int)maxY - 1, (int)maxX, (int)maxY, border);
+            g.fill((int)minX, (int)minY, (int)minX + 1, (int)maxY, border);
+            g.fill((int)maxX - 1, (int)minY, (int)maxX, (int)maxY, border);
+            g.flush();
+            com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
+            g.pose().popPose();
+        }
+
         g.flush();
         g.pose().popPose();
 
-        // ── Left Sidebar ──────────────────────────────────────────────────────
         g.pose().pushPose();
         g.pose().translate(0, 0, 4000.0f);
-        g.fill(0, 0, SIDEBAR_W - 4, this.height, 0xFF2E2A28); // Copper/Zinc background
-        g.fill(SIDEBAR_W - 3, 0, SIDEBAR_W, this.height, 0xFFC8963E); // vertical Brass border strip
-        g.fill(SIDEBAR_W - 4, 0, SIDEBAR_W - 3, this.height, 0xFFE5B869); // light highlight edge
-        g.fill(SIDEBAR_W, 0, SIDEBAR_W + 1, this.height, 0xFF84581C); // shadow edge
+        g.fill(0, 0, SIDEBAR_W - 4, this.height, 0xFF2E2A28);
+        g.fill(SIDEBAR_W - 3, 0, SIDEBAR_W, this.height, 0xFFC8963E);
+        g.fill(SIDEBAR_W - 4, 0, SIDEBAR_W - 3, this.height, 0xFFE5B869);
+        g.fill(SIDEBAR_W, 0, SIDEBAR_W + 1, this.height, 0xFF84581C);
         renderSidebarCards(g, mx, my);
         g.flush();
         g.pose().popPose();
 
-        // Fixed header overlay — rendered LAST so it's always on top of scrolled cards
         g.pose().pushPose();
         g.pose().translate(0, 0, 4500.0f);
-        g.fill(0, 0, SIDEBAR_W - 3, 22, 0xFFC8963E); // Brass plate
-        g.fill(0, 0, SIDEBAR_W - 3, 1, 0xFFE5B869); // top highlight
-        g.fill(0, 21, SIDEBAR_W - 3, 22, 0xFF84581C); // bottom shadow
-        g.drawString(this.font, "§6§lBLOCKS", 8, 7, 0xFFFFEAA0); // Golden bold text
+        g.fill(0, 0, SIDEBAR_W - 3, 22, 0xFFC8963E);
+        g.fill(0, 0, SIDEBAR_W - 3, 1, 0xFFE5B869);
+        g.fill(0, 21, SIDEBAR_W - 3, 22, 0xFF84581C);
+        g.drawString(this.font, "§6§lBLOCKS", 8, 7, 0xFFFFEAA0);
         g.flush();
         g.pose().popPose();
 
-        // ── Bottom strip (covers canvas elements panned to bottom) ────────────
         g.pose().pushPose();
         g.pose().translate(0, 0, 4000.0f);
         int by0 = this.height - 28;
-        
-        // Draw bottom bar Andesite plate background
-        g.fill(SIDEBAR_W, by0, this.width, this.height, 0xFF2A2C2D);
-        
-        // Horizontal Brass divider pipe/rail running along the top of the strip
-        g.fill(SIDEBAR_W, by0, this.width, by0 + 1, 0xFF141312); // outline shadow
-        g.fill(SIDEBAR_W, by0 + 1, this.width, by0 + 2, 0xFFE9C583); // brass highlight
-        g.fill(SIDEBAR_W, by0 + 2, this.width, by0 + 3, 0xFFC8963E); // brass core
-        g.fill(SIDEBAR_W, by0 + 3, this.width, by0 + 4, 0xFF8C5F1C); // brass shadow
 
-        // Bottom-left hint
+        g.fill(SIDEBAR_W, by0, this.width, this.height, 0xFF2A2C2D);
+
+        g.fill(SIDEBAR_W, by0, this.width, by0 + 1, 0xFF141312);
+        g.fill(SIDEBAR_W, by0 + 1, this.width, by0 + 2, 0xFFE9C583);
+        g.fill(SIDEBAR_W, by0 + 2, this.width, by0 + 3, 0xFFC8963E);
+        g.fill(SIDEBAR_W, by0 + 3, this.width, by0 + 4, 0xFF8C5F1C);
+
         if (selectedNode != null) {
             g.drawString(this.font, "§c[X] Delete node", cx0 + 6, this.height - 22, 0xFFFF6666);
             g.drawString(this.font, "§6[W] to ponder", cx0 + 6, this.height - 11, 0xFFFFD700);
@@ -717,16 +864,14 @@ public class NodeEditorScreen extends Screen {
             g.drawString(this.font, "§6[W] to ponder", cx0 + 6, this.height - 17, 0xFFFFD700);
         }
 
-        // Draw custom buttons!
         drawCreateButton(g, "Export", this.width - 250, this.height - 23, 54, 18, mx, my, false);
         drawCreateButton(g, "Import", this.width - 190, this.height - 23, 54, 18, mx, my, false);
-        drawCreateButton(g, "Save",   this.width - 130, this.height - 23, 54, 18, mx, my, true); // Brass style
+        drawCreateButton(g, "Save",   this.width - 130, this.height - 23, 54, 18, mx, my, true);
         drawCreateButton(g, "Cancel", this.width - 70,  this.height - 23, 54, 18, mx, my, false);
 
         g.flush();
         g.pose().popPose();
 
-        // ── Hotbar (for Link nodes) ────────────────────────────────────────────
         if (selectedNode instanceof LinkInputNode || selectedNode instanceof LinkOutputNode) {
             g.pose().pushPose();
             g.pose().translate(0, 0, 4300.0f);
@@ -735,14 +880,6 @@ public class NodeEditorScreen extends Screen {
             g.pose().popPose();
         }
 
-        // Widgets (buttons + inline edit box) rendered on top of everything
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 6000.0f);
-        super.render(g, mx, my, pt);
-        g.flush();
-        g.pose().popPose();
-
-        // Render File Dialog if open
         if (showFileDialog) {
             g.pose().pushPose();
             g.pose().translate(0, 0, 5800.0f);
@@ -750,46 +887,40 @@ public class NodeEditorScreen extends Screen {
             int h = 200;
             int x = (this.width - w) / 2;
             int y = (this.height - h) / 2;
-            
-            // 1. Dialog Casing (Brass plaque)
+
             drawBeveledPlate(g, x, y, w, h, THEME_BRASS, false);
-            
-            // Corner rivets on the dialog plate
+
             drawRivet(g, x + 5, y + 5);
             drawRivet(g, x + w - 7, y + 5);
             drawRivet(g, x + 5, y + h - 7);
             drawRivet(g, x + w - 7, y + h - 7);
 
-            // Title with shadow
             String title = fileDialogExport ? "Export Scheme" : "Import Scheme";
             int twTitle = this.font.width(title);
             g.drawString(this.font, title, x + (w - twTitle) / 2, y + 6, 0xFFFFD700);
-            
-            // Inset client area for inputs and lists
+
             int insetX = x + 8;
             int insetY = y + 18;
             int insetW = w - 16;
             int insetH = h - 52;
             drawInsetPanel(g, insetX, insetY, insetW, insetH, THEME_ANDESITE);
-            
+
             if (fileDialogExport) {
                 g.drawString(this.font, "Enter name:", insetX + 6, insetY + 6, 0xFFACAFB0);
-                
-                // Text input slot background
+
                 g.fill(insetX + 6, insetY + 16, insetX + insetW - 6, insetY + 30, 0xFF141312);
                 g.fill(insetX + 7, insetY + 17, insetX + insetW - 7, insetY + 29, 0xFF0D0C0B);
             }
 
-            // Schemes List recess
             int lx = insetX + 6;
             int ly = insetY + (fileDialogExport ? 34 : 6);
             int lw = insetW - 12;
             int lh = fileDialogExport ? 90 : 118;
             int maxVisible = fileDialogExport ? 6 : 8;
-            
+
             g.fill(lx, ly, lx + lw, ly + lh, 0xFF141312);
             g.fill(lx + 1, ly + 1, lx + lw - 1, ly + lh - 1, 0xFF080706);
-            
+
             if (availableSchemes.isEmpty()) {
                 int tw = this.font.width("No schemes found");
                 g.drawString(this.font, "No schemes found", lx + (lw - tw) / 2, ly + (lh - 9) / 2, 0xFF5F5A57);
@@ -798,54 +929,49 @@ public class NodeEditorScreen extends Screen {
                 for (int i = 0; i < maxVisible; i++) {
                     int idx = startIdx + i;
                     if (idx >= availableSchemes.size()) break;
-                    
+
                     String name = availableSchemes.get(idx);
                     int itemY = ly + 2 + i * 14;
                     boolean isSelected = idx == selectedSchemeIndex;
                     boolean isHover = mx >= lx + 2 && mx < lx + lw - 12 && my >= itemY && my < itemY + 14;
-                    
+
                     if (isSelected) {
-                        g.fill(lx + 2, itemY, lx + lw - 12, itemY + 14, 0xFF35201B); // deep copper
-                        g.fill(lx + 2, itemY, lx + lw - 12, itemY + 1, 0xFFB76D55); // highlight
-                        g.fill(lx + 2, itemY + 13, lx + lw - 12, itemY + 14, 0xFF5E2E1F); // shadow
+                        g.fill(lx + 2, itemY, lx + lw - 12, itemY + 14, 0xFF35201B);
+                        g.fill(lx + 2, itemY, lx + lw - 12, itemY + 1, 0xFFB76D55);
+                        g.fill(lx + 2, itemY + 13, lx + lw - 12, itemY + 14, 0xFF5E2E1F);
                     } else if (isHover) {
-                        g.fill(lx + 2, itemY, lx + lw - 12, itemY + 14, 0xFF1A1A1A); // Hover grey
+                        g.fill(lx + 2, itemY, lx + lw - 12, itemY + 14, 0xFF1A1A1A);
                     }
-                    
+
                     g.drawString(this.font, trunc(name, 24), lx + 6, itemY + 3, isSelected ? 0xFFFFEAA0 : 0xFFCCCCCC);
                 }
-                
-                // Draw Scrollbar as a mechanical brass track/slider
+
                 if (availableSchemes.size() > maxVisible) {
                     int sbX = lx + lw - 10;
                     int sbY = ly + 2;
                     int sbH = lh - 4;
-                    
-                    // Track path
+
                     g.fill(sbX, sbY, sbX + 8, sbY + sbH, 0xFF141312);
-                    g.fill(sbX + 3, sbY, sbX + 5, sbY + sbH, 0xFF3A3D3E); // guide rail
-                    
+                    g.fill(sbX + 3, sbY, sbX + 5, sbY + sbH, 0xFF3A3D3E);
+
                     double viewRatio = (double) maxVisible / availableSchemes.size();
                     int thumbH = (int) (sbH * viewRatio);
                     if (thumbH < 10) thumbH = 10;
                     int thumbY = sbY + (int) ((sbH - thumbH) * (schemeScrollOffset / (availableSchemes.size() - maxVisible)));
-                    
-                    // Mechanical Brass slider knob
+
                     g.fill(sbX + 1, thumbY, sbX + 7, thumbY + thumbH, 0xFF141312);
-                    g.fill(sbX + 2, thumbY + 1, sbX + 6, thumbY + thumbH - 1, 0xFFC8963E); // brass knob
-                    g.fill(sbX + 2, thumbY + 1, sbX + 6, thumbY + 2, 0xFFE9C583); // knob highlight
-                    g.fill(sbX + 2, thumbY + thumbH - 2, sbX + 7, thumbY + thumbH - 1, 0xFF8C5F1C); // knob shadow
+                    g.fill(sbX + 2, thumbY + 1, sbX + 6, thumbY + thumbH - 1, 0xFFC8963E);
+                    g.fill(sbX + 2, thumbY + 1, sbX + 6, thumbY + 2, 0xFFE9C583);
+                    g.fill(sbX + 2, thumbY + thumbH - 2, sbX + 7, thumbY + thumbH - 1, 0xFF8C5F1C);
                 }
             }
 
-            // Draw dialog status / instructions at the bottom of the inset
-            String desc = fileDialogError.isEmpty() 
+            String desc = fileDialogError.isEmpty()
                 ? (fileDialogExport ? "Enter name & click Export" : "Select a scheme to import")
                 : fileDialogError;
             int descColor = fileDialogError.isEmpty() ? 0xFF8C5F1C : 0xFFFF5555;
             g.drawString(this.font, trunc(desc, 36), x + 12, y + h - 30, descColor);
 
-            // Draw Buttons below the inset
             String actLabel = fileDialogExport ? "Export" : "Import";
             drawDialogButton(g, actLabel, x + 10, y + h - 23, 70, 18, mx, my);
             drawDialogButton(g, "Cancel", x + 85, y + h - 23, 65, 18, mx, my);
@@ -855,7 +981,6 @@ public class NodeEditorScreen extends Screen {
             g.pose().popPose();
         }
 
-        // Render Error Banner if active
         if (System.currentTimeMillis() < errorMessageExpiry) {
             g.pose().pushPose();
             g.pose().translate(0, 0, 7000.0f);
@@ -864,64 +989,168 @@ public class NodeEditorScreen extends Screen {
             int eh = 22;
             int ex = SIDEBAR_W + (this.width - SIDEBAR_W - ew) / 2;
             int ey = 10;
-            
-            // Draw hazard warning plaque
+
             drawBeveledPlate(g, ex, ey, ew, eh, THEME_REDSTONE, false);
-            
-            // Draw hazard stripes on the left & right borders inside plaque
-            g.fill(ex + 4, ey + 4, ex + 8, ey + eh - 4, 0xFFFFA500); // yellow/orange warning stripes
+
+            g.fill(ex + 4, ey + 4, ex + 8, ey + eh - 4, 0xFFFFA500);
             g.fill(ex + 4, ey + 4, ex + 6, ey + eh - 4, 0xFF141312);
             g.fill(ex + ew - 8, ey + 4, ex + ew - 4, ey + eh - 4, 0xFFFFA500);
             g.fill(ex + ew - 6, ey + 4, ex + ew - 4, ey + eh - 4, 0xFF141312);
-            
-            // Glowing redstone warning lamp next to the text
+
             int lampX = ex + 14;
             int lampY = ey + 7;
             g.fill(lampX, lampY, lampX + 8, lampY + 8, 0xFF141312);
             int lampCol = (System.currentTimeMillis() % 500 < 250) ? 0xFFFF3333 : 0xFF881111;
             g.fill(lampX + 1, lampY + 1, lampX + 7, lampY + 7, lampCol);
-            g.fill(lampX + 1, lampY + 1, lampX + 3, lampY + 3, 0xFFFFFFFF); // reflection
-            
-            // Warning text
+            g.fill(lampX + 1, lampY + 1, lampX + 3, lampY + 3, 0xFFFFFFFF);
+
             g.drawString(this.font, errorMessage, ex + 28, ey + 7, 0xFFFFFFFF);
-            
+
             g.flush();
             g.pose().popPose();
         }
 
-        // Render Ponder Overlay
         if (ponderOpen) {
-            g.flush(); // Flush background elements
+            g.flush();
             g.pose().pushPose();
             g.pose().translate(0, 0, 8000.0f);
             renderPonderOverlay(g, mx, my);
             g.flush();
             g.pose().popPose();
         }
+
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 7000.0f);
+        drawCreateButton(g, "?", this.width - 24, 6, 18, 18, mx, my, false);
+        g.flush();
+        g.pose().popPose();
+
+        if (showQuickSearch) {
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 7500.0f);
+
+            int qx = (int) quickSearchX;
+            int qy = (int) quickSearchY;
+            int qw = 140;
+            int qh = 24 + quickSearchMatches.size() * 16;
+
+            drawBeveledPlate(g, qx, qy, qw, qh, THEME_ANDESITE, false);
+            g.fill(qx + 6, qy + 6, qx + qw - 6, qy + 18, 0xFF141312);
+            g.fill(qx + 7, qy + 7, qx + qw - 7, qy + 17, 0xFF0D0C0B);
+
+            String val = quickSearchBox.getValue();
+            g.drawString(this.font, val, qx + 10, qy + 8, 0xFFFFFFFF);
+            if (quickSearchBox.isFocused() && (System.currentTimeMillis() / 500) % 2 == 0) {
+                int cursorX = qx + 10 + this.font.width(val);
+                g.fill(cursorX, qy + 8, cursorX + 1, qy + 17, 0xFFFFFFFF);
+            }
+
+            int insetY = (int)qy + 22;
+            for (int i = 0; i < quickSearchMatches.size(); i++) {
+                String[] match = quickSearchMatches.get(i);
+                int rowY = insetY + i * 16;
+                boolean hovered = mx >= qx && mx <= qx + qw && my >= rowY && my <= rowY + 16;
+                if (hovered) {
+                    g.fill((int)qx + 2, rowY, (int)qx + (int)qw - 2, rowY + 16, 0x44E9C583);
+                }
+                g.drawString(this.font, match[2] + " " + trunc(match[0], 12), (int)qx + 8, rowY + 4, hovered ? 0xFFFFD700 : 0xFFACAFB0);
+            }
+            g.flush();
+            g.pose().popPose();
+        }
+
+        if (showHelpOverlay) {
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 9000.0f);
+
+            g.fill(0, 0, this.width, this.height, 0xAA000000);
+
+            int pw = 360;
+            int ph = 260;
+            int px = (this.width - pw) / 2;
+            int py = (this.height - ph) / 2;
+
+            drawBeveledPlate(g, px, py, pw, ph, THEME_BRASS, false);
+            drawRivet(g, px + 5, py + 5);
+            drawRivet(g, px + pw - 7, py + 5);
+            drawRivet(g, px + 5, py + ph - 7);
+            drawRivet(g, px + pw - 7, py + ph - 7);
+
+            int tx = px + (pw - this.font.width("EDITOR CONTROLS & KEYBINDS")) / 2;
+            g.drawString(this.font, "EDITOR CONTROLS & KEYBINDS", tx, py + 10, 0xFFFFD700);
+
+            int innerX = px + 10;
+            int innerY = py + 24;
+            int innerW = pw - 20;
+            int innerH = ph - 34;
+            drawInsetPanel(g, innerX, innerY, innerW, innerH, THEME_ANDESITE);
+
+            int ly = innerY + 8;
+            String[][] keys = {
+                {"Ctrl + Z", "Undo last action"},
+                {"Ctrl + Y / Ctrl+Shift+Z", "Redo last undone action"},
+                {"Ctrl + C / Ctrl + V", "Copy / Paste selected nodes"},
+                {"Shift + Left Click drag", "Box select multiple nodes"},
+                {"Shift + Left Click node", "Toggle node selection"},
+                {"Shift + A", "Open Quick Search node menu"},
+                {"F1 / H", "Toggle this Controls overlay"},
+                {"Esc", "Cancel / Close menu"},
+                {"A", "Select all nodes"},
+                {"X / Delete", "Delete selected nodes/wires"},
+                {"Left Click drag", "Pan the editor canvas"},
+                {"Mouse Scroll", "Zoom in / Zoom out"}
+            };
+
+            for (String[] k : keys) {
+                g.drawString(this.font, "§6" + k[0], innerX + 8, ly, 0xFFFFFFFF);
+                g.drawString(this.font, "§7- " + k[1], innerX + 150, ly, 0xFFFFFFFF);
+                ly += 16;
+            }
+
+            g.flush();
+            g.pose().popPose();
+        }
+
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 9500.0f);
+
+        int prevSearchX = quickSearchBox.getX();
+        int prevSearchY = quickSearchBox.getY();
+        if (showQuickSearch) {
+            quickSearchBox.setX(-600);
+            quickSearchBox.setY(-600);
+        }
+
+        super.render(g, mx, my, pt);
+
+        if (showQuickSearch) {
+            quickSearchBox.setX(prevSearchX);
+            quickSearchBox.setY(prevSearchY);
+        }
+
+        g.flush();
+        g.pose().popPose();
     }
 
-    // ─── Grid ─────────────────────────────────────────────────────────────────
     private void drawTechnicalSchematics(GuiGraphics g) {
-        // Technical labels in semi-transparent brass styling
+
         g.drawString(this.font, "CREATE CO. CONSOLE SCHEMATIC", 30, 30, 0x22C8963E);
         g.drawString(this.font, "MODULE: RADIOLOGISTICS COMPUTER BOARD", 30, 42, 0x15C8963E);
         g.drawString(this.font, "DESIGN SECTION: IV // RL-COMP-V1", 30, 54, 0x15C8963E);
-        
-        // Technical alignment corner markings
+
         g.fill(20, 20, 25, 21, 0x22C8963E);
         g.fill(20, 20, 21, 25, 0x22C8963E);
-        
+
         g.fill(5100, 20, 5105, 21, 0x22C8963E);
         g.fill(5104, 20, 5105, 25, 0x22C8963E);
-        
+
         g.fill(20, 3180, 25, 3181, 0x22C8963E);
         g.fill(20, 3176, 21, 3181, 0x22C8963E);
-        
+
         g.fill(5100, 3180, 5105, 3181, 0x22C8963E);
         g.fill(5104, 3176, 5105, 3181, 0x22C8963E);
     }
 
-    // ─── Grid ─────────────────────────────────────────────────────────────────
     private void drawCreateGridAndRivetPatterns(GuiGraphics g) {
         int gs = 20;
         int cx0 = SIDEBAR_W, cy0 = 0, cx1 = this.width, cy1 = this.height - 28;
@@ -935,9 +1164,8 @@ public class NodeEditorScreen extends Screen {
         int yStart = Math.max(0, (int) Math.floor(minCY / gs) * gs);
         int yEnd = Math.min(3200, (int) Math.ceil(maxCY / gs) * gs);
 
-        // 1. Draw grid lines inside visible area
         for (int cx = xStart; cx <= xEnd; cx += gs) {
-            int col = (cx % 100 == 0) ? 0x228C5F1C : 0x12141312; // Brass vs dark iron
+            int col = (cx % 100 == 0) ? 0x228C5F1C : 0x12141312;
             g.fill(cx, yStart, cx + 1, yEnd, col);
         }
         for (int cy = yStart; cy <= yEnd; cy += gs) {
@@ -945,7 +1173,6 @@ public class NodeEditorScreen extends Screen {
             g.fill(xStart, cy, xEnd, cy + 1, col);
         }
 
-        // 2. Draw rivets at 100px intersections inside visible area
         int rxStart = Math.max(100, ((xStart + 99) / 100) * 100);
         int rxEnd = Math.min(5000, (xEnd / 100) * 100);
         int ryStart = Math.max(100, ((yStart + 99) / 100) * 100);
@@ -953,50 +1180,50 @@ public class NodeEditorScreen extends Screen {
 
         for (int rx = rxStart; rx <= rxEnd; rx += 100) {
             for (int ry = ryStart; ry <= ryEnd; ry += 100) {
-                g.fill(rx - 1, ry - 1, rx + 1, ry + 1, 0xFF141312); // shadow
-                g.fill(rx - 1, ry - 1, rx, ry, 0xFF85807D); // highlight
+                g.fill(rx - 1, ry - 1, rx + 1, ry + 1, 0xFF141312);
+                g.fill(rx - 1, ry - 1, rx, ry, 0xFF85807D);
             }
         }
 
-        // Technical schematics overlay
         drawTechnicalSchematics(g);
     }
 
-    // ─── Sidebar ──────────────────────────────────────────────────────────────
-    // ─── Sidebar ──────────────────────────────────────────────────────────────
     private int getSidebarContentHeight() {
-        int h = 24; // start Y
+        int h = 24;
         h += 22 + CONSTANT_CARDS.length * 30;
         h += 22 + LOGIC_CARDS.length * 30;
         h += 22 + MATH_CARDS.length * 30;
         h += 22 + TEXT_CARDS.length * 30;
-        
+
         List<String[]> signalsCards = getSignalsCards();
         if (!signalsCards.isEmpty()) h += 22 + signalsCards.size() * 30;
-        
+
         List<String[]> linkControllerCards = getLinkControllerCards();
         if (!linkControllerCards.isEmpty()) h += 22 + linkControllerCards.size() * 30;
-        
+
         List<String[]> gyroscopeCards = getGyroscopeCards();
         if (!gyroscopeCards.isEmpty()) h += 22 + gyroscopeCards.size() * 30;
-        
+
+        List<String[]> servoCards = getServoCards();
+        if (!servoCards.isEmpty()) h += 22 + servoCards.size() * 30;
+
         List<String[]> helmetCards = getHelmetCards();
         if (!helmetCards.isEmpty()) h += 22 + helmetCards.size() * 30;
-        
+
         List<String[]> audioCards = getAudioCards();
         if (!audioCards.isEmpty()) h += 22 + audioCards.size() * 30;
-        
+
         List<String[]> mediaCards = getMediaCards();
         if (!mediaCards.isEmpty()) h += 22 + mediaCards.size() * 30;
-        
+
         List<String[]> gizmosCards = getGizmosCards();
         if (!gizmosCards.isEmpty()) h += 22 + gizmosCards.size() * 30;
 
         List<String[]> cannonCards = getCannonCards();
         if (!cannonCards.isEmpty()) h += 22 + cannonCards.size() * 30;
-        
+
         h += 22 + VIEWER_CARDS.length * 30;
-        
+
         if (connectedModules.contains("memory")) {
             h += 22 + 20 + graph.getVariables().size() * 26;
         }
@@ -1019,25 +1246,21 @@ public class NodeEditorScreen extends Screen {
         int w = SIDEBAR_W - 14;
         int h = 14;
         int py = y + 4;
-        
-        // Outline
+
         g.fill(x, py, x + w, py + h, 0xFF141312);
-        
-        // Plate background
-        g.fill(x + 1, py + 1, x + w - 1, py + h - 1, 0xFF7A5828); // dark brass
-        // Highlights/shadows
-        g.fill(x + 1, py + 1, x + w - 1, py + 2, 0xFFA67C3E); // light highlight
+
+        g.fill(x + 1, py + 1, x + w - 1, py + h - 1, 0xFF7A5828);
+
+        g.fill(x + 1, py + 1, x + w - 1, py + 2, 0xFFA67C3E);
         g.fill(x + 1, py + 1, x + 2, py + h - 1, 0xFFA67C3E);
-        g.fill(x + w - 2, py + 1, x + w - 1, py + h - 1, 0xFF4A3212); // shadow
+        g.fill(x + w - 2, py + 1, x + w - 1, py + h - 1, 0xFF4A3212);
         g.fill(x + 1, py + h - 2, x + w - 1, py + h - 1, 0xFF4A3212);
-        
-        // Tiny rivets on left & right
+
         g.fill(x + 3, py + 5, x + 5, py + 7, 0xFF141312);
         g.fill(x + 3, py + 5, x + 4, py + 6, 0xFFACAFB0);
         g.fill(x + w - 5, py + 5, x + w - 3, py + 7, 0xFF141312);
         g.fill(x + w - 5, py + 5, x + w - 4, py + 6, 0xFFACAFB0);
-        
-        // Centered bold warm-yellow text
+
         int tw = this.font.width(title);
         g.drawString(this.font, title, x + (w - tw) / 2, py + 3, 0xFFFFD700);
     }
@@ -1052,35 +1275,30 @@ public class NodeEditorScreen extends Screen {
 
         int y = 24 + (int) leftScrollY;
 
-        // --- CONSTANTS ---
         drawSectionHeader(g, "CONSTANTS", y); y += 22;
         for (String[] card : CONSTANT_CARDS) {
             drawNodeCard(g, card[0], card[1], card[2], y, mx, my);
             y += 30;
         }
 
-        // --- LOGIC ---
         drawSectionHeader(g, "LOGIC", y); y += 22;
         for (String[] card : LOGIC_CARDS) {
             drawNodeCard(g, card[0], card[1], card[2], y, mx, my);
             y += 30;
         }
 
-        // --- MATHEMATICS ---
         drawSectionHeader(g, "MATHEMATICS", y); y += 22;
         for (String[] card : MATH_CARDS) {
             drawNodeCard(g, card[0], card[1], card[2], y, mx, my);
             y += 30;
         }
 
-        // --- TEXT OPS ---
         drawSectionHeader(g, "TEXT OPS", y); y += 22;
         for (String[] card : TEXT_CARDS) {
             drawNodeCard(g, card[0], card[1], card[2], y, mx, my);
             y += 30;
         }
 
-        // --- SIGNALS ---
         List<String[]> signalsCards = getSignalsCards();
         if (!signalsCards.isEmpty()) {
             drawSectionHeader(g, "SIGNALS", y); y += 22;
@@ -1090,7 +1308,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- LINK CONTROLLER ---
         List<String[]> linkControllerCards = getLinkControllerCards();
         if (!linkControllerCards.isEmpty()) {
             drawSectionHeader(g, "LINK CONTROLLER", y); y += 22;
@@ -1100,7 +1317,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- GYROSCOPE ---
         List<String[]> gyroscopeCards = getGyroscopeCards();
         if (!gyroscopeCards.isEmpty()) {
             drawSectionHeader(g, "GYROSCOPE", y); y += 22;
@@ -1110,7 +1326,15 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- HELMET ---
+        List<String[]> servoCards = getServoCards();
+        if (!servoCards.isEmpty()) {
+            drawSectionHeader(g, "SERVO MOTOR", y); y += 22;
+            for (String[] card : servoCards) {
+                drawNodeCard(g, card[0], card[1], card[2], y, mx, my);
+                y += 30;
+            }
+        }
+
         List<String[]> helmetCards = getHelmetCards();
         if (!helmetCards.isEmpty()) {
             drawSectionHeader(g, "HELMET", y); y += 22;
@@ -1120,7 +1344,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- AUDIO ---
         List<String[]> audioCards = getAudioCards();
         if (!audioCards.isEmpty()) {
             drawSectionHeader(g, "AUDIO", y); y += 22;
@@ -1130,7 +1353,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- MEDIA ---
         List<String[]> mediaCards = getMediaCards();
         if (!mediaCards.isEmpty()) {
             drawSectionHeader(g, "MEDIA", y); y += 22;
@@ -1140,7 +1362,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- GIZMOS ---
         List<String[]> gizmosCards = getGizmosCards();
         if (!gizmosCards.isEmpty()) {
             drawSectionHeader(g, "GIZMOS", y); y += 22;
@@ -1150,7 +1371,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- CANNON ---
         List<String[]> cannonCards = getCannonCards();
         if (!cannonCards.isEmpty()) {
             drawSectionHeader(g, "CANNON", y); y += 22;
@@ -1160,21 +1380,19 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- VIEWERS ---
         drawSectionHeader(g, "VIEWERS", y); y += 22;
         for (String[] card : VIEWER_CARDS) {
             drawNodeCard(g, card[0], card[1], card[2], y, mx, my);
             y += 30;
         }
 
-        // --- VARIABLES ---
         if (connectedModules.contains("memory")) {
             drawSectionHeader(g, "VARS", y); y += 22;
 
-            // +T  +#  +B buttons
-            drawSmallBtn(g, 4,  y, "+T", 0xFF3B7A57, mx, my);
-            drawSmallBtn(g, 42, y, "+#", 0xFF225588, mx, my);
-            drawSmallBtn(g, 80, y, "+B", 0xFF886622, mx, my);
+            drawSmallBtn(g, 4,  y, 25, "+T", 0xFF3B7A57, mx, my);
+            drawSmallBtn(g, 32, y, 25, "+#", 0xFF225588, mx, my);
+            drawSmallBtn(g, 60, y, 25, "+B", 0xFF886622, mx, my);
+            drawSmallBtn(g, 88, y, 25, "+L", 0xFF882288, mx, my);
             y += 20;
 
             for (String vn : new ArrayList<>(graph.getVariables().keySet())) {
@@ -1189,21 +1407,20 @@ public class NodeEditorScreen extends Screen {
                 boolean sel = vn.equals(selectedVar);
                 int w = SIDEBAR_W - 14;
                 boolean hoverVar = mx >= 4 && mx < 4 + w && my >= y && my < y + 22;
-                
+
                 MaterialTheme varTheme = THEME_ROSE;
                 int borderCol = sel ? 0xFFFFD700 : (hoverVar ? 0xFFC97C8E : 0xFF141312);
                 g.fill(4, y, 4 + w, y + 22, borderCol);
-                
+
                 int varBg = sel ? varTheme.headerBg : (hoverVar ? varTheme.bodyBg : 0xFF2A1C1F);
                 g.fill(5, y + 1, 4 + w - 1, y + 21, varBg);
-                
-                // Type icon/badge
+
                 int tc = varTypeColor(type);
-                String tl = switch (type) { case "number" -> "#"; case "bool" -> "B"; default -> "T"; };
+                String tl = switch (type) { case "number" -> "#"; case "bool" -> "B"; case "list" -> "L"; default -> "T"; };
                 g.fill(7, y + 3, 17, y + 19, 0xFF141312);
                 g.fill(8, y + 4, 16, y + 18, tc);
                 g.drawString(this.font, tl, 10, y + 6, 0xFFFFFFFF);
-                
+
                 if (inlineActive && vn.equals(inlineVarName)) {
                     inlineBox.setY(y + 5);
                     if ("var_rename".equals(inlineField)) {
@@ -1221,55 +1438,49 @@ public class NodeEditorScreen extends Screen {
                     String sn = trunc(vn + "=" + valStr, 8);
                     g.drawString(this.font, sn, 22, y + 7, 0xFFCCCCCC);
                 }
-                
-                // Spawn Get (G) / Set (S) / Delete (X) buttons
+
                 int gxBtn = 4 + w - 46;
                 boolean hoverG = mx >= gxBtn      && mx < gxBtn + 13 && my >= y + 4 && my < y + 18;
                 boolean hoverS = mx >= gxBtn + 15 && mx < gxBtn + 28 && my >= y + 4 && my < y + 18;
                 boolean hoverX = mx >= gxBtn + 30 && mx < gxBtn + 43 && my >= y + 4 && my < y + 18;
-                
-                // G button (Brass style)
+
                 int gBg = hoverG ? 0xFFD8A64E : 0xFFC8963E;
                 g.fill(gxBtn, y + 4, gxBtn + 13, y + 18, 0xFF141312);
                 g.fill(gxBtn + 1, y + 5, gxBtn + 12, y + 17, gBg);
                 g.drawString(this.font, "G", gxBtn + 4, y + 6, hoverG ? 0xFFFFFFFF : 0xFFFFEAA0);
-                
-                // S button (Brass style)
+
                 int sBg = hoverS ? 0xFFD8A64E : 0xFFC8963E;
                 g.fill(gxBtn + 15, y + 4, gxBtn + 28, y + 18, 0xFF141312);
                 g.fill(gxBtn + 16, y + 5, gxBtn + 27, y + 17, sBg);
                 g.drawString(this.font, "S", gxBtn + 19, y + 6, hoverS ? 0xFFFFFFFF : 0xFFFFEAA0);
 
-                // X button (Redstone Red style)
                 int xBg = hoverX ? 0xFFC94A4C : 0xFF9E2A2B;
                 g.fill(gxBtn + 30, y + 4, gxBtn + 43, y + 18, 0xFF141312);
                 g.fill(gxBtn + 31, y + 5, gxBtn + 42, y + 17, xBg);
                 g.drawString(this.font, "x", gxBtn + 34, y + 5, hoverX ? 0xFFFFFFFF : 0xFFFFD2D2);
-                
+
                 y += 26;
             }
         }
 
-        // Draw mechanical scrollbar if needed
         if (totalHeight > sbH) {
             int sbX = SIDEBAR_W - 8;
             int sbY = 22;
-            
-            // guide rail track
+
             g.fill(sbX, sbY, sbX + 4, sbY + sbH, 0xFF141312);
             g.fill(sbX + 1, sbY, sbX + 3, sbY + sbH, 0xFF3E3A36);
-            
+
             double viewRatio = (double) sbH / totalHeight;
             int thumbH = (int) (sbH * viewRatio);
             if (thumbH < 15) thumbH = 15;
             int thumbY = sbY + (int) ((sbH - thumbH) * (-leftScrollY / (totalHeight - sbH)));
-            
+
             boolean hoverThumb = mx >= sbX - 2 && mx <= sbX + 6 && my >= thumbY && my <= thumbY + thumbH;
             int thumbBg = (hoverThumb || draggingSidebarScrollbar) ? 0xFFE9C583 : 0xFFC8963E;
-            
+
             g.fill(sbX - 1, thumbY, sbX + 5, thumbY + thumbH, 0xFF141312);
             g.fill(sbX, thumbY + 1, sbX + 4, thumbY + thumbH - 1, thumbBg);
-            g.fill(sbX, thumbY + 1, sbX + 4, thumbY + 2, 0xFFFFFFFF); // highlight dot
+            g.fill(sbX, thumbY + 1, sbX + 4, thumbY + 2, 0xFFFFFFFF);
         }
     }
 
@@ -1298,44 +1509,40 @@ public class NodeEditorScreen extends Screen {
         int x = 4;
         int w = SIDEBAR_W - 14;
         boolean hover = mx >= x && mx < x + w && my >= y && my < y + 28;
-        
+
         if (hover && !ponderOpen) {
             lastHoveredSidebarType = type;
             lastHoveredSidebarY = y;
         }
-        
+
         MaterialTheme theme = getThemeForType(type);
-        
-        // Card outline
-        int outlineCol = hover ? 0xFFFFD700 : 0xFF141312; // Gold when hovered
+
+        int outlineCol = hover ? 0xFFFFD700 : 0xFF141312;
         g.fill(x, y, x + w, y + 28, outlineCol);
-        
-        // Card body highlight/shadow
+
         int frameHighlight = hover ? 0xFFFFA500 : theme.highlight;
         int frameShadow = hover ? 0xFFCC6600 : theme.shadow;
         int bg = hover ? theme.headerBg : theme.bodyBg;
-        
+
         g.fill(x + 1, y + 1, x + w - 1, y + 27, bg);
         g.fill(x + 1, y + 1, x + w - 1, y + 2, frameHighlight);
         g.fill(x + 1, y + 2, x + 2, y + 27, frameHighlight);
         g.fill(x + w - 2, y + 1, x + w - 1, y + 27, frameShadow);
         g.fill(x + 1, y + 26, x + w - 1, y + 27, frameShadow);
-        
-        // Accent stripe on the left edge
+
         g.fill(x + 3, y + 3, x + 6, y + 25, theme.primary);
-        
+
         int textShift = hover ? 1 : 0;
         int textCol = hover ? 0xFFFFFFFF : 0xFFCCCCCC;
-        
+
         int symW = this.font.width(sym);
         int symX = x + 8 + (24 - symW) / 2 + textShift;
         g.drawString(this.font, "§e" + sym, symX, y + 9, 0xFFFFD700);
-        
+
         int maxLabelW = w - 40;
         String elidedLabel = elide(label, maxLabelW);
         g.drawString(this.font, elidedLabel, x + 36 + textShift, y + 10, textCol);
-        
-        // If this card is currently being hovered & W is held, render the progress bar inside it
+
         if (ponderOpenType == null && type.equals(ponderHoveredType) && ponderHoldStart > 0) {
             double elapsed = System.currentTimeMillis() - ponderHoldStart;
             float progress = (float)(elapsed / 1000.0);
@@ -1352,30 +1559,28 @@ public class NodeEditorScreen extends Screen {
                 }
             }
         }
-        
-        // Add tiny corner rivets to the card for that extra industrial detail
+
         g.fill(x + 2, y + 2, x + 3, y + 3, 0xFF141312);
         g.fill(x + w - 3, y + 2, x + w - 2, y + 3, 0xFF141312);
         g.fill(x + 2, y + 25, x + 3, y + 26, 0xFF141312);
         g.fill(x + w - 3, y + 25, x + w - 2, y + 26, 0xFF141312);
     }
 
-    private void drawSmallBtn(GuiGraphics g, int x, int y, String label, int accent, double mx, double my) {
-        boolean hover = mx >= x && mx < x + 34 && my >= y && my < y + 14;
+    private void drawSmallBtn(GuiGraphics g, int x, int y, int w, String label, int accent, double mx, double my) {
+        boolean hover = mx >= x && mx < x + w && my >= y && my < y + 14;
         int border = hover ? 0xFFFFD700 : 0xFF141312;
         int bg = hover ? 0xFF4E4B48 : 0xFF2A2826;
-        
-        g.fill(x, y, x + 34, y + 14, border);
-        g.fill(x + 1, y + 1, x + 33, y + 13, bg);
-        // Bevel highlights
-        g.fill(x + 1, y + 1, x + 33, y + 2, hover ? 0xFFFFA500 : 0xFF5A5856);
+
+        g.fill(x, y, x + w, y + 14, border);
+        g.fill(x + 1, y + 1, x + w - 1, y + 13, bg);
+
+        g.fill(x + 1, y + 1, x + w - 1, y + 2, hover ? 0xFFFFA500 : 0xFF5A5856);
         g.fill(x + 1, y + 1, x + 2, y + 13, hover ? 0xFFFFA500 : 0xFF5A5856);
-        
+
         int tw = this.font.width(label);
-        g.drawString(this.font, label, x + (34 - tw) / 2, y + 3, accent);
+        g.drawString(this.font, label, x + (w - tw) / 2, y + 3, accent);
     }
 
-    // ─── Node rendering (canvas-space) ────────────────────────────────────────
     private void renderNode(GuiGraphics g, AlgoNode node, float zLevel) {
         int nw = NODE_W;
         int nh = nodeHeight(node);
@@ -1385,7 +1590,6 @@ public class NodeEditorScreen extends Screen {
         g.pose().pushPose();
         g.pose().translate(node.getX(), node.getY(), zLevel);
 
-        // If this node is currently being hovered & W is held, render the progress bar above it
         if (ponderOpenType == null && node == ponderHoveredNode && ponderHoldStart > 0) {
             double elapsed = System.currentTimeMillis() - ponderHoldStart;
             float progress = (float)(elapsed / 1000.0);
@@ -1403,7 +1607,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // 1. Draw the beveled plate chassis
         drawBeveledPlate(g, 0, 0, nw, nh, theme, isSelected);
 
         boolean isMock = false;
@@ -1411,40 +1614,63 @@ public class NodeEditorScreen extends Screen {
         if (isMock) {
             insetY = 3;
         } else {
-            // 2. Draw the header plate
-            int headerBg = isSelected ? 0xFF533F25 : theme.headerBg; // golden/brass header when selected
-            g.fill(3, 3, nw - 3, HDR_H, headerBg);
-            
-            // Highlight line at the bottom of the header
-            g.fill(3, HDR_H - 1, nw - 3, HDR_H, 0x40000000); // black translucent shadow line
-            g.fill(3, HDR_H, nw - 3, HDR_H + 1, theme.highlight); // metallic highlight line below header
 
-            // Header corner rivets
+            int headerBg = isSelected ? 0xFF533F25 : theme.headerBg;
+            g.fill(3, 3, nw - 3, HDR_H, headerBg);
+
+            g.fill(3, HDR_H - 1, nw - 3, HDR_H, 0x40000000);
+            g.fill(3, HDR_H, nw - 3, HDR_H + 1, theme.highlight);
+
             drawRivet(g, 5, 4);
             drawRivet(g, nw - 7, 4);
             drawRivet(g, 5, HDR_H - 4);
             drawRivet(g, nw - 7, HDR_H - 4);
 
-            // Title centered in header with drop shadow
             String title = nodeTitle(node.getType());
-            int maxTitleW = nw - 24;
+            int maxTitleW = isIndexedNode(node) ? nw - 36 : nw - 24;
             String elidedTitle = elide(title, maxTitleW);
             int tw = this.font.width(elidedTitle);
-            int titleX = (nw - tw) / 2;
             int titleY = 4;
-            g.drawString(this.font, elidedTitle, titleX, titleY, isSelected ? 0xFFFFEAA0 : 0xFFFFFFFF);
-            
+
+            if (isIndexedNode(node)) {
+                int val = getIndexedNodeValue(node);
+                int btnW = 12;
+                int gw = tw + 4 + btnW;
+                int gx = (nw - gw) / 2;
+                int titleX = gx;
+
+                g.drawString(this.font, elidedTitle, titleX, titleY, isSelected ? 0xFFFFEAA0 : 0xFFFFFFFF);
+
+                int bx = gx + tw + 4;
+                int by = 3;
+                int bw = btnW;
+                int bh = 10;
+
+                g.fill(bx, by, bx + bw, by + bh, 0xFF141312);
+                g.fill(bx + 1, by + 1, bx + bw - 1, by + bh - 1, 0xFF5A5A5A);
+                g.fill(bx + 1, by + 1, bx + bw - 1, by + 2, 0xFF7A7A7A);
+                g.fill(bx + 1, by + 1, bx + 2, by + bh - 1, 0xFF7A7A7A);
+                g.fill(bx + bw - 2, by + 1, bx + bw - 1, by + bh - 1, 0xFF3A3A3A);
+                g.fill(bx + 1, by + bh - 2, bx + bw - 1, by + bh - 1, 0xFF3A3A3A);
+
+                String valStr = String.valueOf(val);
+                int vtw = this.font.width(valStr);
+                g.drawString(this.font, valStr, bx + (bw - vtw) / 2, by + 1, 0xFFFFFFFF);
+            } else {
+                int titleX = (nw - tw) / 2;
+                g.drawString(this.font, elidedTitle, titleX, titleY, isSelected ? 0xFFFFEAA0 : 0xFFFFFFFF);
+            }
+
             insetY = HDR_H + 3;
         }
 
-        // 3. Draw inset panel for the rest of the node (ports + properties)
         int insetH = nh - insetY - 4;
         drawInsetPanel(g, 4, insetY, nw - 8, insetH, theme);
 
         if (node instanceof com.radiologistics.create.node.nodes.CommentNode cn) {
-            String fullText = (cn.getId().equals(inlineNodeId) && inlineActive && "comment".equals(inlineField)) 
+            String fullText = (cn.getId().equals(inlineNodeId) && inlineActive && "comment".equals(inlineField))
                 ? inlineBox.getValue() + "_" : cn.getComment();
-            List<String> lines = splitComment(fullText, nw - 16); // adjusted width to fit inside inset
+            List<String> lines = splitComment(fullText, nw - 16);
             int py = insetY + 4;
             for (String line : lines) {
                 g.drawString(this.font, line, 8, py, 0xFFCCCCCC);
@@ -1455,7 +1681,6 @@ public class NodeEditorScreen extends Screen {
             List<String> outs = node.getOutputPorts();
             int maxP  = Math.max(ins.size(), outs.size());
 
-            // Input ports (female sockets / copper)
             for (int i = 0; i < ins.size(); i++) {
                 String pn = ins.get(i);
                 int py = insetY + i * ROW_H + 2;
@@ -1466,9 +1691,77 @@ public class NodeEditorScreen extends Screen {
                 int maxPortW = nw / 2 - 14;
                 String elidedPn = elide(pn, maxPortW);
                 g.drawString(this.font, elidedPn, px + 9, py + 2, 0xFFACAFB0);
+
+                if (!conn) {
+                    String key = node.getId() + ":" + pn;
+                    boolean isBool = isBooleanPort(node, pn);
+                    boolean isEditing = node.getId().equals(inlineNodeId) && inlineActive && ("port_val:" + pn).equals(inlineField);
+
+                    String valStr = node.getDefaultPortValues().getOrDefault(pn, "");
+                    boolean shouldBeVisible = isEditing || !valStr.isEmpty() || visibleFallbackPorts.contains(key);
+
+                    float currentProgress = fallbackAnimWidths.getOrDefault(key, valStr.isEmpty() ? 0.0f : 1.0f);
+                    float targetProgress = shouldBeVisible ? 1.0f : 0.0f;
+
+                    if (currentProgress < targetProgress) {
+                        currentProgress = Math.min(targetProgress, currentProgress + 0.12f);
+                        fallbackAnimWidths.put(key, currentProgress);
+                    } else if (currentProgress > targetProgress) {
+                        currentProgress = Math.max(targetProgress, currentProgress - 0.12f);
+                        fallbackAnimWidths.put(key, currentProgress);
+                    }
+
+                    if (currentProgress > 0.01f) {
+                        int maxW = isBool ? 24 : 32;
+                        int bw = (int) (currentProgress * maxW);
+                        if (bw > 0) {
+                            int bh = 9;
+                            int bx = -bw - 1;
+                            int by = py + 2;
+
+                            int copperCol = 0xFFB35E38;
+                            int bgCol = 0xFF0D0C0B;
+
+                            if (isBool) {
+                                boolean isTrue = valStr.equalsIgnoreCase("true");
+                                int pillCol = isTrue ? 0xFF388E3C : 0xFF333333;
+
+                                g.fill(bx, by + 1, bx + bw, by + bh - 1, copperCol);
+                                g.fill(bx + 1, by, bx + bw - 1, by + bh, copperCol);
+
+                                g.fill(bx + 1, by + 2, bx + bw - 1, by + bh - 2, pillCol);
+                                g.fill(bx + 2, by + 1, bx + bw - 2, by + bh - 1, pillCol);
+
+                                int knobW = 8;
+                                int knobX = isTrue ? (bx + bw - knobW - 2) : (bx + 2);
+                                int knobCol = isTrue ? 0xFFFFFFFF : 0xFFAAAAAA;
+                                g.fill(knobX, by + 2, knobX + knobW, by + bh - 2, knobCol);
+                            } else {
+
+                                g.fill(bx, by, bx + bw, by + bh, copperCol);
+                                g.fill(bx + 1, by + 1, bx + bw - 1, by + bh - 1, bgCol);
+
+                                if (isEditing) {
+
+                                    int focusCol = 0xFFFFA500;
+                                    g.fill(bx, by, bx + bw, by + 1, focusCol);
+                                    g.fill(bx, by + bh - 1, bx + bw, by + bh, focusCol);
+                                    g.fill(bx, by, bx + 1, by + bh, focusCol);
+                                    g.fill(bx + bw - 1, by, bx + bw, by + bh, focusCol);
+                                }
+
+                                String textToDraw = valStr;
+                                if (isEditing) {
+                                    textToDraw += "_";
+                                }
+                                String elidedText = elide(textToDraw, bw - 4);
+                                g.drawString(this.font, elidedText, bx + 2, by + 1, isEditing ? 0xFFFFFFFF : 0xFF88AA88);
+                            }
+                        }
+                    }
+                }
             }
 
-            // Output ports (male plugs / brass)
             for (int i = 0; i < outs.size(); i++) {
                 String pn = outs.get(i);
                 int py = insetY + i * ROW_H + 2;
@@ -1482,9 +1775,8 @@ public class NodeEditorScreen extends Screen {
                 g.drawString(this.font, elidedPn, px - 9 - pw, py + 2, 0xFFACAFB0);
             }
 
-            // Inline properties
             int propSY = insetY + maxP * ROW_H + 2;
-            renderNodeProps(g, node, 4, nw - 8, propSY); // coordinates adjusted to be relative to node local space
+            renderNodeProps(g, node, 4, nw - 8, propSY);
         }
 
         g.flush();
@@ -1496,8 +1788,14 @@ public class NodeEditorScreen extends Screen {
 
         if (node instanceof TextNode tn) {
             String val = editing && "text".equals(inlineField) ? inlineBox.getValue() + "_" : tn.getText();
-            if (val.length() > 13) val = val.substring(0, 11) + "…";
-            drawPropRow(g, sx, sw, py, "\"" + val + "\"", 0xFF88AA88, editing);
+            if (expandedTextNodes.contains(node.getId())) {
+                List<String> lines = splitComment("\"" + val + "\"", sw - 16);
+                int multilineH = lines.size() * 10 + 6;
+                drawPropRowMultiline(g, sx, sw, py, multilineH, lines, 0xFF88AA88, editing);
+            } else {
+                if (val.length() > 13) val = val.substring(0, 11) + "…";
+                drawPropRow(g, sx, sw, py, "\"" + val + "\"", 0xFF88AA88, editing);
+            }
 
         } else if (node instanceof NumberNode nn) {
             String val = editing && "number".equals(inlineField) ? inlineBox.getValue() + "_" : nn.getValueString();
@@ -1508,24 +1806,21 @@ public class NodeEditorScreen extends Screen {
             int ph = PROP_H;
             int bx = sx + 4;
             int bw = sw - 8;
-            
-            // Draw beveled button covering the whole area
-            int btnBg = val ? 0xFFC8963E : 0xFF5A5D5E; // Brass for TRUE, Andesite for FALSE
+
+            int btnBg = val ? 0xFFC8963E : 0xFF5A5D5E;
             int btnHighlight = val ? 0xFFE9C583 : 0xFF808284;
             int btnShadow = val ? 0xFF8C5F1C : 0xFF383A3B;
-            
-            // Outline
+
             g.fill(bx, py + 2, bx + bw, py + ph - 2, 0xFF141312);
-            
-            // Bevel faces
+
             g.fill(bx + 1, py + 3, bx + bw - 1, py + ph - 3, btnBg);
-            // Highlight top & left
+
             g.fill(bx + 1, py + 3, bx + bw - 1, py + 4, btnHighlight);
             g.fill(bx + 1, py + 3, bx + 2, py + ph - 3, btnHighlight);
-            // Shadow bottom & right
+
             g.fill(bx + bw - 2, py + 3, bx + bw - 1, py + ph - 3, btnShadow);
             g.fill(bx + 1, py + ph - 4, bx + bw - 1, py + ph - 3, btnShadow);
-            
+
             String label = val ? "TRUE" : "FALSE";
             int textCol = val ? 0xFF88FF88 : 0xFFFF8888;
             int tw = this.font.width(label);
@@ -1549,19 +1844,40 @@ public class NodeEditorScreen extends Screen {
             g.drawString(this.font, "get: " + trunc(vn.getVariableName(), 12), sx + 8, py + 4, 0xFF888888);
         } else if (node instanceof SetVariableNode svn) {
             g.drawString(this.font, "set: " + trunc(svn.getVariableName(), 12), sx + 8, py + 4, 0xFF888888);
+        } else if (node instanceof com.radiologistics.create.node.nodes.GetListNode gln) {
+            g.drawString(this.font, "get list: " + trunc(gln.getVariableName(), 12), sx + 8, py + 4, 0xFF888888);
+        } else if (node instanceof com.radiologistics.create.node.nodes.SetListNode sln) {
+            g.drawString(this.font, "set list: " + trunc(sln.getVariableName(), 12), sx + 8, py + 4, 0xFF888888);
+        } else if (node instanceof com.radiologistics.create.node.nodes.CustomNode cn) {
+            String lang = net.minecraft.client.Minecraft.getInstance().getLanguageManager().getSelected();
+            boolean isUa = lang.toLowerCase().contains("uk_") || lang.toLowerCase().contains("ukr");
+            int ph = PROP_H;
+            int bx = sx + 4;
+            int bw = sw - 8;
+            g.fill(bx, py + 2, bx + bw, py + ph - 2, 0xFF141312);
+            int btnBg = 0xFFC8963E;
+            int btnHighlight = 0xFFE9C583;
+            int btnShadow = 0xFF8C5F1C;
+            g.fill(bx + 1, py + 3, bx + bw - 1, py + ph - 3, btnBg);
+            g.fill(bx + 1, py + 3, bx + bw - 1, py + 4, btnHighlight);
+            g.fill(bx + 1, py + 3, bx + 2, py + ph - 3, btnHighlight);
+            g.fill(bx + bw - 2, py + 3, bx + bw - 1, py + ph - 3, btnShadow);
+            g.fill(bx + 1, py + ph - 4, bx + bw - 1, py + ph - 3, btnShadow);
+            String label = isUa ? "ВІДКРИТИ" : "OPEN";
+            int tw = this.font.width(label);
+            g.drawString(this.font, label, bx + (bw - tw) / 2, py + 5, 0xFFFFEAA0);
         } else if (node instanceof LinkInputNode lin) {
             boolean active1 = activeFreqSlot == 0 && node == selectedNode;
             boolean active2 = activeFreqSlot == 1 && node == selectedNode;
-            
+
             int cx = sx + sw / 2;
             g.fill(cx - 28, py, cx + 28, py + 18, 0xFF141312);
             g.fill(cx - 27, py + 1, cx + 27, py + 17, THEME_REDSTONE.insetBg);
-            
-            // Slot 1 (Frequency 1) - Blue border
-            int border1 = active1 ? 0xFFFFD700 : 0xFF2F5597;
+
+            int border1 = active1 ? 0xFFFFD700 : 0xFFC00000;
             g.fill(cx - 22, py + 1, cx - 4, py + 17, border1);
             g.fill(cx - 21, py + 2, cx - 5, py + 16, 0xFF0D0C0B);
-            
+
             ItemStack stk1 = getItemStackFromId(lin.getFreq1());
             if (!stk1.isEmpty()) {
                 g.renderFakeItem(stk1, cx - 21, py + 1);
@@ -1569,12 +1885,11 @@ public class NodeEditorScreen extends Screen {
                 int tw = this.font.width("—");
                 g.drawString(this.font, "—", cx - 21 + (16 - tw) / 2, py + 5, 0xFF888888);
             }
-            
-            // Slot 2 (Frequency 2) - Red border
-            int border2 = active2 ? 0xFFFFD700 : 0xFFC00000;
+
+            int border2 = active2 ? 0xFFFFD700 : 0xFF2F5597;
             g.fill(cx + 4, py + 1, cx + 22, py + 17, border2);
             g.fill(cx + 5, py + 2, cx + 21, py + 16, 0xFF0D0C0B);
-            
+
             ItemStack stk2 = getItemStackFromId(lin.getFreq2());
             if (!stk2.isEmpty()) {
                 g.renderFakeItem(stk2, cx + 5, py + 1);
@@ -1582,20 +1897,19 @@ public class NodeEditorScreen extends Screen {
                 int tw = this.font.width("—");
                 g.drawString(this.font, "—", cx + 5 + (16 - tw) / 2, py + 5, 0xFF888888);
             }
-            
+
         } else if (node instanceof LinkOutputNode lon) {
             boolean active1 = activeFreqSlot == 0 && node == selectedNode;
             boolean active2 = activeFreqSlot == 1 && node == selectedNode;
-            
+
             int cx = sx + sw / 2;
             g.fill(cx - 28, py, cx + 28, py + 18, 0xFF141312);
             g.fill(cx - 27, py + 1, cx + 27, py + 17, THEME_REDSTONE.insetBg);
-            
-            // Slot 1 (Frequency 1) - Blue border
-            int border1 = active1 ? 0xFFFFD700 : 0xFF2F5597;
+
+            int border1 = active1 ? 0xFFFFD700 : 0xFFC00000;
             g.fill(cx - 22, py + 1, cx - 4, py + 17, border1);
             g.fill(cx - 21, py + 2, cx - 5, py + 16, 0xFF0D0C0B);
-            
+
             ItemStack stk1 = getItemStackFromId(lon.getFreq1());
             if (!stk1.isEmpty()) {
                 g.renderFakeItem(stk1, cx - 21, py + 1);
@@ -1603,12 +1917,11 @@ public class NodeEditorScreen extends Screen {
                 int tw = this.font.width("—");
                 g.drawString(this.font, "—", cx - 21 + (16 - tw) / 2, py + 5, 0xFF888888);
             }
-            
-            // Slot 2 (Frequency 2) - Red border
-            int border2 = active2 ? 0xFFFFD700 : 0xFFC00000;
+
+            int border2 = active2 ? 0xFFFFD700 : 0xFF2F5597;
             g.fill(cx + 4, py + 1, cx + 22, py + 17, border2);
             g.fill(cx + 5, py + 2, cx + 21, py + 16, 0xFF0D0C0B);
-            
+
             ItemStack stk2 = getItemStackFromId(lon.getFreq2());
             if (!stk2.isEmpty()) {
                 g.renderFakeItem(stk2, cx + 5, py + 1);
@@ -1617,15 +1930,15 @@ public class NodeEditorScreen extends Screen {
                 g.drawString(this.font, "—", cx + 5 + (16 - tw) / 2, py + 5, 0xFF888888);
             }
         } else if (node instanceof GyroscopeNode) {
-            g.drawString(this.font, "pitch / yaw", sx + 8, py + 4, 0xFF888888);
+
         } else if (node instanceof GyroscopePositionNode) {
-            g.drawString(this.font, "x / y / z pos", sx + 8, py + 4, 0xFF888888);
+
         } else if (node instanceof AntennaOutputNode) {
             g.drawString(this.font, "ch + msg  →  wired", sx + 8, py + 4, 0xFF666666);
         } else if (node instanceof BoolViewerNode bvn) {
             int ph = PROP_H;
             g.fill(sx + 4, py + 2, sx + sw - 4, py + ph - 2, 0xFF141312);
-            
+
             if (!bvn.hasValue()) {
                 g.fill(sx + 5, py + 3, sx + sw - 5, py + ph - 3, 0xFF222222);
                 int lw = this.font.width("OFFLINE");
@@ -1635,7 +1948,7 @@ public class NodeEditorScreen extends Screen {
                 int bg = val ? 0xFF1E3A1E : 0xFF3A1E1E;
                 int fg = val ? 0xFF88FF88 : 0xFFFF8888;
                 g.fill(sx + 5, py + 3, sx + sw - 5, py + ph - 3, bg);
-                
+
                 String lbl = val ? "● ACTIVE" : "○ INACTIVE";
                 int lw = this.font.width(lbl);
                 g.drawString(this.font, lbl, sx + (sw - lw) / 2, py + 5, fg);
@@ -1644,7 +1957,7 @@ public class NodeEditorScreen extends Screen {
             int ph = PROP_H;
             g.fill(sx + 4, py + 2, sx + sw - 4, py + ph - 2, 0xFF141312);
             g.fill(sx + 5, py + 3, sx + sw - 5, py + ph - 3, 0xFF110F0E);
-            
+
             if (!nvn.hasValue()) {
                 int lw = this.font.width("—");
                 g.drawString(this.font, "—", sx + (sw - lw) / 2, py + 5, 0xFF5F5A57);
@@ -1660,9 +1973,9 @@ public class NodeEditorScreen extends Screen {
                     }
                 }
                 if (lbl.length() > 14) lbl = lbl.substring(0, 12) + "…";
-                
+
                 int lw = this.font.width(lbl);
-                g.drawString(this.font, lbl, sx + (sw - lw) / 2, py + 5, 0xFFFF8400); // Amber nixie tube text
+                g.drawString(this.font, lbl, sx + (sw - lw) / 2, py + 5, 0xFFFF8400);
             }
         } else if (node instanceof com.radiologistics.create.node.nodes.ShapeNode sn) {
             String val = sn.getShape().toUpperCase();
@@ -1682,35 +1995,42 @@ public class NodeEditorScreen extends Screen {
             int tw = this.font.width(val);
             g.drawString(this.font, val, bx + (bw - tw) / 2, py + 5, textCol);
         } else if (node instanceof TextViewerNode tvn) {
-            int ph = PROP_H;
-            g.fill(sx + 4, py + 2, sx + sw - 4, py + ph - 2, 0xFF141312);
-            g.fill(sx + 5, py + 3, sx + sw - 5, py + ph - 3, 0xFF0D0C0B);
-            
-            if (!tvn.hasValue()) {
-                int lw = this.font.width("—");
-                g.drawString(this.font, "—", sx + (sw - lw) / 2, py + 5, 0xFF5F5A57);
+            if (expandedTextNodes.contains(node.getId())) {
+                String val = tvn.hasValue() ? tvn.getLastValue() : "—";
+                List<String> lines = splitComment(val, sw - 16);
+                int multilineH = lines.size() * 10 + 6;
+                drawPropRowMultiline(g, sx, sw, py, multilineH, lines, 0xFF88AA88, false);
             } else {
-                String lbl = tvn.getLastValue();
-                if (lbl.length() > 14) lbl = lbl.substring(0, 12) + "…";
-                int lw = this.font.width(lbl);
-                g.drawString(this.font, lbl, sx + (sw - lw) / 2, py + 5, 0xFF88AA88);
+                int ph = PROP_H;
+                g.fill(sx + 4, py + 2, sx + sw - 4, py + ph - 2, 0xFF141312);
+                g.fill(sx + 5, py + 3, sx + sw - 5, py + ph - 3, 0xFF0D0C0B);
+
+                if (!tvn.hasValue()) {
+                    int lw = this.font.width("—");
+                    g.drawString(this.font, "—", sx + (sw - lw) / 2, py + 5, 0xFF5F5A57);
+                } else {
+                    String lbl = tvn.getLastValue();
+                    if (lbl.length() > 14) lbl = lbl.substring(0, 12) + "…";
+                    int lw = this.font.width(lbl);
+                    g.drawString(this.font, lbl, sx + (sw - lw) / 2, py + 5, 0xFF88AA88);
+                }
             }
         } else if (node instanceof com.radiologistics.create.node.nodes.GizmosViewNode gvn) {
-            // Mini canvas preview — 80px tall, full node width minus margins
+
             int canvasX = sx + 4;
             int canvasY = py;
             int canvasW = sw - 8;
             int canvasH = 80;
-            // Background
+
             g.fill(canvasX,     canvasY,     canvasX + canvasW, canvasY + canvasH, 0xFF141312);
             g.fill(canvasX + 1, canvasY + 1, canvasX + canvasW - 1, canvasY + canvasH - 1, 0xFF0A0908);
             if (gvn.getLastCount() == 0) {
-                // Empty state
+
                 String lbl = "no signal";
                 int lw = this.font.width(lbl);
                 g.drawString(this.font, lbl, canvasX + (canvasW - lw) / 2, canvasY + canvasH / 2 - 4, 0xFF444444);
             } else {
-                // Draw each gizmo rect scaled to canvas
+
                 for (long[] rect : gvn.getPreviewRects()) {
                     int rx = canvasX + 1 + (int)(rect[0] * (canvasW - 2) / 1000);
                     int ry = canvasY + 1 + (int)(rect[1] * (canvasH - 2) / 1000);
@@ -1719,7 +2039,7 @@ public class NodeEditorScreen extends Screen {
                     int col = (int) rect[4];
                     g.fill(rx, ry, rx + rw, ry + rh, col);
                 }
-                // Count label overlay
+
                 String cnt = gvn.getLastCount() + "x";
                 g.drawString(this.font, cnt, canvasX + canvasW - this.font.width(cnt) - 3, canvasY + 2, 0xAAB76D55);
             }
@@ -1735,7 +2055,7 @@ public class NodeEditorScreen extends Screen {
             String lang = net.minecraft.client.Minecraft.getInstance().getLanguageManager().getSelected();
             boolean isUa = lang.toLowerCase().contains("uk_") || lang.toLowerCase().contains("ukr");
 
-            String text = isUa 
+            String text = isUa
                 ? "Радіус: " + dist + "м | Канали: " + chans
                 : "Radius: " + dist + "m | Chans: " + chans;
 
@@ -1748,25 +2068,36 @@ public class NodeEditorScreen extends Screen {
         }
     }
 
-    /**
-     * Draws a clickable/editable property row.
-     */
     private void drawPropRow(GuiGraphics g, int sx, int sw, int py,
                               String label, int textColor, boolean isActive) {
         int ph = PROP_H;
         int borderCol = isActive ? 0xFFFFA500 : 0xFF141312;
         g.fill(sx + 4, py + 2, sx + sw - 4, py + ph - 2, borderCol);
-        
+
         int bg = isActive ? 0xFF2A2826 : 0xFF0D0C0B;
         g.fill(sx + 5, py + 3, sx + sw - 5, py + ph - 3, bg);
-        
+
         if (!isActive) {
             g.drawString(this.font, "⚙", sx + sw - 14, py + 4, 0xFF6E655E);
         }
         g.drawString(this.font, label, sx + 8, py + 5, textColor);
     }
 
-    // ─── Hotbar ───────────────────────────────────────────────────────────────
+    private void drawPropRowMultiline(GuiGraphics g, int sx, int sw, int py, int height,
+                                       List<String> lines, int textColor, boolean isActive) {
+        int borderCol = isActive ? 0xFFFFA500 : 0xFF141312;
+        g.fill(sx + 4, py + 2, sx + sw - 4, py + height - 2, borderCol);
+
+        int bg = isActive ? 0xFF2A2826 : 0xFF0D0C0B;
+        g.fill(sx + 5, py + 3, sx + sw - 5, py + height - 3, bg);
+
+        int lineY = py + 5;
+        for (String line : lines) {
+            g.drawString(this.font, line, sx + 8, lineY, textColor);
+            lineY += 10;
+        }
+    }
+
     private void renderHotbar(GuiGraphics g) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
@@ -1792,7 +2123,6 @@ public class NodeEditorScreen extends Screen {
         }
     }
 
-    // ─── Inline editing ───────────────────────────────────────────────────────
     private void openInlineEdit(AlgoNode node, String field, String value) {
         if (!"export".equals(field) && !"import".equals(field)) {
             pushUndoState();
@@ -1801,12 +2131,13 @@ public class NodeEditorScreen extends Screen {
         inlineField  = field;
         inlineActive = true;
         positionInlineBox(node);
-        inlineBox.setValue(value);
         inlineBox.visible = true;
-        inlineBox.setHighlightPos(0);
-        // Route keyboard input to the EditBox through Screen's focus system
+
         this.setFocused(inlineBox);
         inlineBox.setFocused(true);
+        inlineBox.setValue(value);
+        inlineBox.setCursorPosition(value.length());
+        inlineBox.setHighlightPos(value.length());
     }
 
     private void positionInlineBox(AlgoNode node) {
@@ -1840,11 +2171,24 @@ public class NodeEditorScreen extends Screen {
                         if (n instanceof SetVariableNode sv && sv.getVariableName().equals(inlineVarName)) {
                             sv.setVariableName(newName);
                         }
+                        if (n instanceof com.radiologistics.create.node.nodes.GetListNode gl && gl.getVariableName().equals(inlineVarName)) {
+                            gl.setVariableName(newName);
+                        }
+                        if (n instanceof com.radiologistics.create.node.nodes.SetListNode sl && sl.getVariableName().equals(inlineVarName)) {
+                            sl.setVariableName(newName);
+                        }
                     }
                     if (inlineVarName.equals(selectedVar)) {
                         selectedVar = newName;
                     }
                 }
+            }
+        }
+        if (inlineActive && inlineField != null && inlineField.startsWith("port_val:") && inlineNodeId != null) {
+            String pn = inlineField.substring("port_val:".length());
+            String val = inlineBox.getValue().trim();
+            if (val.isEmpty()) {
+                visibleFallbackPorts.remove(inlineNodeId + ":" + pn);
             }
         }
         inlineActive = false;
@@ -1870,6 +2214,17 @@ public class NodeEditorScreen extends Screen {
         if (inlineNodeId == null) return;
         AlgoNode node = graph.getNodes().get(inlineNodeId);
         if (node == null) return;
+
+        if (inlineField != null && inlineField.startsWith("port_val:")) {
+            String portName = inlineField.substring("port_val:".length());
+            if (text.isEmpty()) {
+                node.getDefaultPortValues().remove(portName);
+            } else {
+                node.getDefaultPortValues().put(portName, text);
+            }
+            return;
+        }
+
         switch (inlineField) {
             case "text"    -> { if (node instanceof TextNode tn)          tn.setText(text); }
             case "number"  -> { if (node instanceof NumberNode nn) {
@@ -1880,9 +2235,43 @@ public class NodeEditorScreen extends Screen {
         }
     }
 
-    // ─── Mouse ────────────────────────────────────────────────────────────────
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        long currentTime = System.currentTimeMillis();
+        boolean isDoubleClick = (button == 0) && (currentTime - lastNodeClickTime < 250) && (Math.abs(mx - lastNodeClickX) < 5) && (Math.abs(my - lastNodeClickY) < 5);
+        lastNodeClickTime = currentTime;
+        lastNodeClickX = mx;
+        lastNodeClickY = my;
+
+        if (showHelpOverlay) {
+            showHelpOverlay = false;
+            return true;
+        }
+
+        if (showQuickSearch) {
+            int qx = (int) quickSearchX;
+            int qy = (int) quickSearchY;
+            int qw = 140;
+            int qh = 24 + quickSearchMatches.size() * 16;
+
+            boolean inPopup = mx >= qx && mx <= qx + qw && my >= qy && my <= qy + qh;
+            if (inPopup) {
+                if (my < qy + 22) {
+                    super.mouseClicked(mx, my, button);
+                } else {
+                    int idx = (int)((my - (qy + 22)) / 16);
+                    if (idx >= 0 && idx < quickSearchMatches.size()) {
+                        spawnSearchedNode(quickSearchMatches.get(idx)[1]);
+                    }
+                    closeQuickSearch();
+                }
+                return true;
+            } else {
+                closeQuickSearch();
+                return true;
+            }
+        }
+
         if (ponderOpen) {
             handlePonderClick((int)mx, (int)my);
             return true;
@@ -1898,13 +2287,12 @@ public class NodeEditorScreen extends Screen {
                 closeFileDialog();
                 return true;
             }
-            
-            // 1. Clicks on the list
+
             int lx = x + 10;
             int ly = y + (fileDialogExport ? 55 : 22);
             int lw = 230;
             int lh = fileDialogExport ? 95 : 128;
-            
+
             if (mx >= lx + 2 && mx < lx + lw - 12 && my >= ly + 2 && my < ly + lh - 2) {
                 int clickedRow = (int) ((my - ly - 2) / 14);
                 int startIdx = (int) schemeScrollOffset;
@@ -1913,8 +2301,7 @@ public class NodeEditorScreen extends Screen {
                     selectedSchemeIndex = idx;
                     String name = availableSchemes.get(idx);
                     inlineBox.setValue(name);
-                    
-                    // Double click check
+
                     long now = System.currentTimeMillis();
                     if (idx == lastClickedIndex && now - lastClickTime < 300) {
                         handleFileDialogSubmit();
@@ -1925,8 +2312,7 @@ public class NodeEditorScreen extends Screen {
                     return true;
                 }
             }
-            
-            // 1b. Scrollbar click
+
             int maxVisible = fileDialogExport ? 6 : 9;
             if (availableSchemes.size() > maxVisible) {
                 int sbX = lx + lw - 10;
@@ -1938,8 +2324,7 @@ public class NodeEditorScreen extends Screen {
                     return true;
                 }
             }
-            
-            // 2. Click on the text box (for Export)
+
             if (fileDialogExport) {
                 int bx = inlineBox.getX(), by = inlineBox.getY();
                 boolean inBox = mx >= bx && mx <= bx + inlineBox.getWidth()
@@ -1950,23 +2335,19 @@ public class NodeEditorScreen extends Screen {
                     return true;
                 }
             }
-            
-            // 3. Clicks on the buttons
-            // Button 1: Action (Import/Export)
+
             int b1x = x + 10, b1y = y + 172, b1w = 70, b1h = 18;
             if (mx >= b1x && mx < b1x + b1w && my >= b1y && my < b1y + b1h) {
                 handleFileDialogSubmit();
                 return true;
             }
-            
-            // Button 2: Cancel
+
             int b2x = x + 90, b2y = y + 172, b2w = 60, b2h = 18;
             if (mx >= b2x && mx < b2x + b2w && my >= b2y && my < b2y + b2h) {
                 closeFileDialog();
                 return true;
             }
-            
-            // Button 3: Open Folder
+
             int b3x = x + 160, b3y = y + 172, b3w = 80, b3h = 18;
             if (mx >= b3x && mx < b3x + b3w && my >= b3y && my < b3y + b3h) {
                 java.io.File dir = new java.io.File(net.minecraft.client.Minecraft.getInstance().gameDirectory, "radiologistics_schemes");
@@ -1976,11 +2357,10 @@ public class NodeEditorScreen extends Screen {
                 net.minecraft.Util.getPlatform().openFile(dir);
                 return true;
             }
-            
+
             return true;
         }
 
-        // If inline box is active and click lands outside it → close it
         if (inlineActive) {
             int bx = inlineBox.getX(), by = inlineBox.getY();
             boolean inBox = mx >= bx && mx <= bx + inlineBox.getWidth()
@@ -1988,7 +2368,12 @@ public class NodeEditorScreen extends Screen {
             if (!inBox) closeInlineEdit();
         }
 
-        // Clicks on bottom bar buttons
+        if (mx >= this.width - 24 && mx <= this.width - 6 && my >= 6 && my <= 24) {
+            showHelpOverlay = !showHelpOverlay;
+            playClickSound();
+            return true;
+        }
+
         int by0 = this.height - 28;
         if (my >= by0 && mx >= SIDEBAR_W) {
             if (mx >= this.width - 250 && mx < this.width - 250 + 54 && my >= this.height - 23 && my < this.height - 23 + 18) {
@@ -2013,7 +2398,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // Left sidebar
         if (mx < SIDEBAR_W) {
             int totalHeight = getSidebarContentHeight();
             int sbH = this.height - 22;
@@ -2026,21 +2410,71 @@ public class NodeEditorScreen extends Screen {
             return true;
         }
 
-        // Hotbar
         if ((selectedNode instanceof LinkInputNode || selectedNode instanceof LinkOutputNode)
                 && handleHotbarClick(mx, my)) {
             return true;
         }
 
-        // Canvas — convert to canvas-space
         double cmx = toCanvasX(mx);
         double cmy = toCanvasY(my);
 
-        // 1. Port hit-test
+        String exemptKey = null;
         for (AlgoNode node : graph.getNodes().values()) {
             for (String pn : node.getInputPorts()) {
                 double[] pp = portCanvasPos(node, pn, false);
                 if (dist2(cmx, cmy, pp[0], pp[1]) < 36) {
+                    exemptKey = node.getId() + ":" + pn;
+                    break;
+                }
+            }
+            if (exemptKey != null) break;
+
+            if (!(node instanceof com.radiologistics.create.node.nodes.CommentNode)) {
+                double nx = node.getX(), ny = node.getY();
+                int insetY = HDR_H + 3;
+                List<String> ins = node.getInputPorts();
+                for (int j = 0; j < ins.size(); j++) {
+                    String pn = ins.get(j);
+                    boolean conn = isInputConnected(node.getId(), pn);
+                    if (!conn) {
+                        String key = node.getId() + ":" + pn;
+                        String val = node.getDefaultPortValues().getOrDefault(pn, "");
+                        boolean isVisible = !val.isEmpty() || visibleFallbackPorts.contains(key);
+                        if (isVisible) {
+                            int py = insetY + j * ROW_H + 2;
+                            boolean isBool = isBooleanPort(node, pn);
+                            int bw = isBool ? 24 : 32;
+                            double bx = nx - bw - 1;
+                            double by = ny + py + 2;
+                            if (cmx >= bx && cmx <= bx + bw && cmy >= by && cmy <= by + 9) {
+                                exemptKey = key;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (exemptKey != null) break;
+        }
+
+        hideEmptyFallbackPorts(exemptKey);
+
+        for (AlgoNode node : graph.getNodes().values()) {
+            for (String pn : node.getInputPorts()) {
+                double[] pp = portCanvasPos(node, pn, false);
+                if (dist2(cmx, cmy, pp[0], pp[1]) < 36) {
+                    boolean conn = isInputConnected(node.getId(), pn);
+                    if (!conn) {
+                        String key = node.getId() + ":" + pn;
+                        if (visibleFallbackPorts.contains(key)) {
+                            String val = node.getDefaultPortValues().getOrDefault(pn, "");
+                            if (val.isEmpty()) {
+                                visibleFallbackPorts.remove(key);
+                            }
+                        } else {
+                            visibleFallbackPorts.add(key);
+                        }
+                    }
                     wireSrcId = node.getId(); wireSrcPort = pn;
                     wireSrcOut = false; wireDragCX = cmx; wireDragCY = cmy;
                     return true;
@@ -2056,7 +2490,45 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // 2. Node body hit-test
+        for (AlgoNode node : graph.getNodes().values()) {
+            if (!(node instanceof com.radiologistics.create.node.nodes.CommentNode)) {
+                double nx = node.getX(), ny = node.getY();
+                int insetY = HDR_H + 3;
+                List<String> ins = node.getInputPorts();
+                for (int j = 0; j < ins.size(); j++) {
+                    String pn = ins.get(j);
+                    boolean conn = isInputConnected(node.getId(), pn);
+                    if (!conn) {
+                        String key = node.getId() + ":" + pn;
+                        String val = node.getDefaultPortValues().getOrDefault(pn, "");
+                        boolean isVisible = !val.isEmpty() || visibleFallbackPorts.contains(key);
+                        if (isVisible) {
+                            int py = insetY + j * ROW_H + 2;
+                            boolean isBool = isBooleanPort(node, pn);
+                            int bw = isBool ? 24 : 32;
+                            double bx = nx - bw - 1;
+                            double by = ny + py + 2;
+                            if (cmx >= bx && cmx <= bx + bw && cmy >= by && cmy <= by + 9) {
+                                pushUndoState();
+                                String currentVal = node.getDefaultPortValues().getOrDefault(pn, "");
+                                if (isBool) {
+                                    boolean nextVal = !currentVal.equalsIgnoreCase("true");
+                                    node.getDefaultPortValues().put(pn, String.valueOf(nextVal));
+                                    Minecraft.getInstance().getSoundManager().play(
+                                            net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+                                                    net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                                } else {
+                                    openInlineEdit(node, "port_val:" + pn, currentVal);
+                                    visibleFallbackPorts.add(key);
+                                }
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         for (int i = nodeOrder.size() - 1; i >= 0; i--) {
             String id = nodeOrder.get(i);
             AlgoNode node = graph.getNodes().get(id);
@@ -2064,11 +2536,27 @@ public class NodeEditorScreen extends Screen {
             double nx = node.getX(), ny = node.getY();
             double totalH = nodeHeight(node);
             if (cmx >= nx && cmx <= nx + NODE_W && cmy >= ny && cmy <= ny + totalH) {
-                // Move this node to the end of the order list so it is drawn last (on top)
+                if (isIndexedNode(node)) {
+                    String title = nodeTitle(node.getType());
+                    int maxTitleW = NODE_W - 36;
+                    String elidedTitle = elide(title, maxTitleW);
+                    int tw = this.font.width(elidedTitle);
+                    int btnW = 12;
+                    int gw = tw + 4 + btnW;
+                    int gx = (NODE_W - gw) / 2;
+                    int bx = gx + tw + 4;
+
+                    double relX = cmx - nx;
+                    double relY = cmy - ny;
+                    if (relY >= 1 && relY <= HDR_H && relX >= bx - 3 && relX <= bx + btnW + 3) {
+                        cycleNodeIndex(node);
+                        return true;
+                    }
+                }
+
                 nodeOrder.remove(id);
                 nodeOrder.add(id);
 
-                // Property row hit or Comment body hit?
                 if (node instanceof com.radiologistics.create.node.nodes.CommentNode cn) {
                     if (cmy >= ny + HDR_H) {
                         openInlineEdit(cn, "comment", cn.getComment());
@@ -2076,22 +2564,45 @@ public class NodeEditorScreen extends Screen {
                 } else {
                     int maxP = Math.max(node.getInputPorts().size(), node.getOutputPorts().size());
                     double propCY = ny + HDR_H + maxP * ROW_H + 3;
-                    if (cmy >= propCY && cmy <= propCY + propRowCount(node) * PROP_H) {
-                        handleNodePropClick(node, cmx - nx);
+                    double propH;
+                    if (node instanceof TextNode tn && expandedTextNodes.contains(node.getId())) {
+                        boolean editing = node.getId().equals(inlineNodeId) && inlineActive;
+                        String val = editing && "text".equals(inlineField) ? inlineBox.getValue() + "_" : tn.getText();
+                        List<String> lines = splitComment("\"" + val + "\"", NODE_W - 16);
+                        propH = lines.size() * 10 + 6;
+                    } else if (node instanceof TextViewerNode tvn && expandedTextNodes.contains(node.getId())) {
+                        String val = tvn.hasValue() ? tvn.getLastValue() : "—";
+                        List<String> lines = splitComment(val, NODE_W - 16);
+                        propH = lines.size() * 10 + 6;
+                    } else {
+                        propH = propRowCount(node) * PROP_H;
+                    }
+                    if (cmy >= propCY && cmy <= propCY + propH) {
+                        handleNodePropClick(node, cmx - nx, isDoubleClick);
                     }
                 }
                 selectedNode = node; selectedLink = null; selectedVar = null;
-                if (!selectedNodeIds.contains(node.getId())) {
-                    selectedNodeIds.clear();
-                    selectedNodeIds.add(node.getId());
+                if (hasShiftDown()) {
+                    if (selectedNodeIds.contains(node.getId())) {
+                        selectedNodeIds.remove(node.getId());
+                        if (selectedNode == node) {
+                            selectedNode = selectedNodeIds.isEmpty() ? null : graph.getNodes().get(selectedNodeIds.iterator().next());
+                        }
+                    } else {
+                        selectedNodeIds.add(node.getId());
+                    }
+                } else {
+                    if (!selectedNodeIds.contains(node.getId())) {
+                        selectedNodeIds.clear();
+                        selectedNodeIds.add(node.getId());
+                    }
                 }
                 dragging = node; dragOffX = cmx - nx; dragOffY = cmy - ny;
-                dragStartState = graph.toNBT(); // Save state before drag starts
+                dragStartState = graph.toNBT();
                 return true;
             }
         }
 
-        // 3. Wire hit-test
         NodeLink hit = hitTestWire(cmx, cmy);
         if (hit != null) {
             selectedLink = hit; selectedNode = null; selectedVar = null;
@@ -2100,17 +2611,26 @@ public class NodeEditorScreen extends Screen {
             return true;
         }
 
-        // 4. Canvas pan / deselect
         selectedNode = null; selectedLink = null; selectedVar = null;
         selectedNodeIds.clear();
         closeInlineEdit();
         if (button == 0) {
-            isPanning = true; panStartX = mx - panX; panStartY = my - panY;
+            if (hasShiftDown()) {
+                isBoxSelecting = true;
+                boxSelectStartX = cmx;
+                boxSelectStartY = cmy;
+                boxSelectEndX = cmx;
+                boxSelectEndY = cmy;
+            } else {
+                isPanning = true;
+                panStartX = mx - panX;
+                panStartY = my - panY;
+            }
         }
         return super.mouseClicked(mx, my, button);
     }
 
-    private void handleNodePropClick(AlgoNode node, double relX) {
+    private void handleNodePropClick(AlgoNode node, double relX, boolean isDoubleClick) {
         if (node instanceof BoolNode bn) {
             pushUndoState();
             bn.toggle();
@@ -2123,9 +2643,27 @@ public class NodeEditorScreen extends Screen {
             int idx = sides.indexOf(ron.getSide().toLowerCase());
             ron.setSide(sides.get((idx + 1) % sides.size()));
         } else if (node instanceof TextNode tn) {
-            openInlineEdit(node, "text", tn.getText());
+            if (isDoubleClick) {
+                if (expandedTextNodes.contains(node.getId())) {
+                    expandedTextNodes.remove(node.getId());
+                } else {
+                    expandedTextNodes.add(node.getId());
+                }
+            } else {
+                openInlineEdit(node, "text", tn.getText());
+            }
+        } else if (node instanceof TextViewerNode tvn) {
+            if (isDoubleClick) {
+                if (expandedTextNodes.contains(node.getId())) {
+                    expandedTextNodes.remove(node.getId());
+                } else {
+                    expandedTextNodes.add(node.getId());
+                }
+            }
         } else if (node instanceof NumberNode nn) {
             openInlineEdit(node, "number", nn.getValueString());
+        } else if (node instanceof com.radiologistics.create.node.nodes.CustomNode cn) {
+            net.minecraft.client.Minecraft.getInstance().setScreen(new com.radiologistics.create.gui.CustomNodeEditorScreen(this, cn));
         } else if (node instanceof LinkInputNode || node instanceof LinkOutputNode) {
             if (relX < NODE_W / 2.0) {
                 activeFreqSlot = 0;
@@ -2141,35 +2679,30 @@ public class NodeEditorScreen extends Screen {
     private void handleSidebarClick(double mx, double my) {
         int y = 24 + (int) leftScrollY;
 
-        // --- CONSTANTS ---
-        y += 22; // Skip header
+        y += 22;
         for (String[] card : CONSTANT_CARDS) {
             if (my >= y && my < y + 28) { addNewNode(card[1]); return; }
             y += 30;
         }
 
-        // --- LOGIC ---
         y += 22;
         for (String[] card : LOGIC_CARDS) {
             if (my >= y && my < y + 28) { addNewNode(card[1]); return; }
             y += 30;
         }
 
-        // --- MATHEMATICS ---
         y += 22;
         for (String[] card : MATH_CARDS) {
             if (my >= y && my < y + 28) { addNewNode(card[1]); return; }
             y += 30;
         }
 
-        // --- TEXT OPS ---
         y += 22;
         for (String[] card : TEXT_CARDS) {
             if (my >= y && my < y + 28) { addNewNode(card[1]); return; }
             y += 30;
         }
 
-        // --- SIGNALS ---
         List<String[]> signalsCards = getSignalsCards();
         if (!signalsCards.isEmpty()) {
             y += 22;
@@ -2179,7 +2712,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- LINK CONTROLLER ---
         List<String[]> linkControllerCards = getLinkControllerCards();
         if (!linkControllerCards.isEmpty()) {
             y += 22;
@@ -2189,7 +2721,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- GYROSCOPE ---
         List<String[]> gyroscopeCards = getGyroscopeCards();
         if (!gyroscopeCards.isEmpty()) {
             y += 22;
@@ -2199,7 +2730,15 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- HELMET ---
+        List<String[]> servoCards = getServoCards();
+        if (!servoCards.isEmpty()) {
+            y += 22;
+            for (String[] card : servoCards) {
+                if (my >= y && my < y + 28) { addNewNode(card[1]); return; }
+                y += 30;
+            }
+        }
+
         List<String[]> helmetCards = getHelmetCards();
         if (!helmetCards.isEmpty()) {
             y += 22;
@@ -2209,7 +2748,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- AUDIO ---
         List<String[]> audioCards = getAudioCards();
         if (!audioCards.isEmpty()) {
             y += 22;
@@ -2219,7 +2757,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- MEDIA ---
         List<String[]> mediaCards = getMediaCards();
         if (!mediaCards.isEmpty()) {
             y += 22;
@@ -2229,7 +2766,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- GIZMOS ---
         List<String[]> gizmosCards = getGizmosCards();
         if (!gizmosCards.isEmpty()) {
             y += 22;
@@ -2239,7 +2775,6 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- CANNON ---
         List<String[]> cannonCards = getCannonCards();
         if (!cannonCards.isEmpty()) {
             y += 22;
@@ -2249,29 +2784,35 @@ public class NodeEditorScreen extends Screen {
             }
         }
 
-        // --- VIEWERS ---
         y += 22;
         for (String[] card : VIEWER_CARDS) {
             if (my >= y && my < y + 28) { addNewNode(card[1]); return; }
             y += 30;
         }
 
-        // --- VARIABLES ---
         if (connectedModules.contains("memory")) {
-            y += 22; // Skip header
-            // +T / +# / +B
+            y += 22;
+
             if (my >= y && my < y + 14) {
-                if (mx >= 4  && mx < 38)  { addVariable("text");   return; }
-                if (mx >= 42 && mx < 76)  { addVariable("number"); return; }
-                if (mx >= 80 && mx < 114) { addVariable("bool");   return; }
+                if (mx >= 4  && mx < 29)  { addVariable("text");   return; }
+                if (mx >= 32 && mx < 57)  { addVariable("number"); return; }
+                if (mx >= 60 && mx < 85)  { addVariable("bool");   return; }
+                if (mx >= 88 && mx < 113) { addVariable("list");   return; }
             }
             y += 20;
             for (String vn : new ArrayList<>(graph.getVariables().keySet())) {
                 if (my >= y && my < y + 22) {
                     int w = SIDEBAR_W - 14;
                     int gxBtn = 4 + w - 46;
-                    if (mx >= gxBtn      && mx < gxBtn + 13) { spawnGetVar(vn); return; }
-                    if (mx >= gxBtn + 15 && mx < gxBtn + 28) { spawnSetVar(vn); return; }
+                    String type = graph.getVariableTypes().getOrDefault(vn, "text");
+                    if (mx >= gxBtn      && mx < gxBtn + 13) {
+                        if ("list".equals(type)) { spawnGetList(vn); } else { spawnGetVar(vn); }
+                        return;
+                    }
+                    if (mx >= gxBtn + 15 && mx < gxBtn + 28) {
+                        if ("list".equals(type)) { spawnSetList(vn); } else { spawnSetVar(vn); }
+                        return;
+                    }
                     if (mx >= gxBtn + 30 && mx < gxBtn + 43) {
                         deleteVar(vn);
                         Minecraft.getInstance().getSoundManager().play(
@@ -2307,11 +2848,12 @@ public class NodeEditorScreen extends Screen {
             inlineField = "var_value";
             inlineActive = true;
             String val = String.valueOf(graph.getVariables().getOrDefault(varName, ""));
-            inlineBox.setValue(val);
             inlineBox.visible = true;
-            inlineBox.setHighlightPos(0);
             this.setFocused(inlineBox);
             inlineBox.setFocused(true);
+            inlineBox.setValue(val);
+            inlineBox.setCursorPosition(val.length());
+            inlineBox.setHighlightPos(val.length());
             inlineBox.setX(52);
             inlineBox.setY(cardY + 5);
             inlineBox.setWidth(20);
@@ -2324,11 +2866,12 @@ public class NodeEditorScreen extends Screen {
         inlineNodeId = null;
         inlineField = "var_rename";
         inlineActive = true;
-        inlineBox.setValue(varName);
         inlineBox.visible = true;
-        inlineBox.setHighlightPos(0);
         this.setFocused(inlineBox);
         inlineBox.setFocused(true);
+        inlineBox.setValue(varName);
+        inlineBox.setCursorPosition(varName.length());
+        inlineBox.setHighlightPos(varName.length());
         inlineBox.setX(22);
         inlineBox.setY(cardY + 5);
         inlineBox.setWidth(50);
@@ -2365,6 +2908,12 @@ public class NodeEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (isBoxSelecting) {
+            boxSelectEndX = toCanvasX(mx);
+            boxSelectEndY = toCanvasY(my);
+            return true;
+        }
+
         if (ponderOpen || ponderHoldStart > 0) {
             if (ponderOpen) {
                 handlePonderDrag((int)mx, (int)my);
@@ -2410,10 +2959,10 @@ public class NodeEditorScreen extends Screen {
             int nh = nodeHeight(dragging);
             double clampedX = Math.max(0.0, Math.min(5120.0 - NODE_W, targetX));
             double clampedY = Math.max(0.0, Math.min(3200.0 - nh, targetY));
-            
+
             double shiftX = clampedX - dragging.getX();
             double shiftY = clampedY - dragging.getY();
-            
+
             if (selectedNodeIds.contains(dragging.getId())) {
                 for (String id : selectedNodeIds) {
                     AlgoNode n = graph.getNodes().get(id);
@@ -2447,6 +2996,34 @@ public class NodeEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
+        if (isBoxSelecting) {
+            isBoxSelecting = false;
+            double minX = Math.min(boxSelectStartX, boxSelectEndX);
+            double maxX = Math.max(boxSelectStartX, boxSelectEndX);
+            double minY = Math.min(boxSelectStartY, boxSelectEndY);
+            double maxY = Math.max(boxSelectStartY, boxSelectEndY);
+
+            selectedNodeIds.clear();
+            for (AlgoNode node : graph.getNodes().values()) {
+                double nx = node.getX();
+                double ny = node.getY();
+                double nw = NODE_W;
+                double nh = nodeHeight(node);
+                boolean overlaps = !(nx + nw < minX || nx > maxX || ny + nh < minY || ny > maxY);
+                if (overlaps) {
+                    selectedNodeIds.add(node.getId());
+                }
+            }
+            if (!selectedNodeIds.isEmpty()) {
+                selectedNode = graph.getNodes().get(selectedNodeIds.iterator().next());
+            } else {
+                selectedNode = null;
+            }
+            selectedLink = null;
+            selectedVar = null;
+            return true;
+        }
+
         if (ponderOpen) {
             isScrubberDragging = false;
             return true;
@@ -2541,7 +3118,7 @@ public class NodeEditorScreen extends Screen {
         double minZoom = Math.min((double)(this.width - SIDEBAR_W) / 5120.0, (double)(this.height - 28) / 3200.0);
         double pz = zoom;
         zoom = Math.max(minZoom, Math.min(2.5, zoom + sy * 0.1));
-        // Zoom centred on cursor
+
         double cmx = (mx - SIDEBAR_W - panX) / pz;
         double cmy = (my - panY) / pz;
         panX = mx - SIDEBAR_W - cmx * zoom;
@@ -2554,11 +3131,33 @@ public class NodeEditorScreen extends Screen {
         return true;
     }
 
-    // ─── Keys ─────────────────────────────────────────────────────────────────
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (showHelpOverlay) {
+            if (keyCode == 256 || keyCode == 290) {
+                showHelpOverlay = false;
+                return true;
+            }
+            return true;
+        }
+
+        if (showQuickSearch) {
+            if (keyCode == 256) {
+                closeQuickSearch();
+                return true;
+            }
+            if (keyCode == 257 || keyCode == 335) {
+                if (!quickSearchMatches.isEmpty()) {
+                    spawnSearchedNode(quickSearchMatches.get(0)[1]);
+                }
+                closeQuickSearch();
+                return true;
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
         if (ponderOpen) {
-            if (keyCode == 256) { // Escape
+            if (keyCode == 256) {
                 closePonder();
             }
             return true;
@@ -2576,21 +3175,48 @@ public class NodeEditorScreen extends Screen {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
-        // Route all keys to inline box when it's active
         if (inlineActive && inlineBox.isFocused()) {
-            if (keyCode == 257 || keyCode == 335) { closeInlineEdit(); return true; } // Enter
-            if (keyCode == 256) { closeInlineEdit(); return true; }                    // Esc
+            if (keyCode == 257 || keyCode == 335) { closeInlineEdit(); return true; }
+            if (keyCode == 256) { closeInlineEdit(); return true; }
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
-        // Ctrl + Z — undo
-        if (keyCode == 90 && hasControlDown()) {
+        if (keyCode == 90 && hasControlDown() && !hasShiftDown()) {
             performUndo();
             return true;
         }
 
-        // A — select all nodes
-        if (keyCode == 65) {
+        if (keyCode == 89 && hasControlDown()) {
+            performRedo();
+            return true;
+        }
+
+        if (keyCode == 90 && hasControlDown() && hasShiftDown()) {
+            performRedo();
+            return true;
+        }
+
+        if (keyCode == 67 && hasControlDown()) {
+            performCopy();
+            return true;
+        }
+
+        if (keyCode == 86 && hasControlDown()) {
+            performPaste();
+            return true;
+        }
+
+        if (keyCode == 65 && hasShiftDown() && !hasControlDown()) {
+            openQuickSearch();
+            return true;
+        }
+
+        if (keyCode == 290 || (keyCode == 72 && !inlineActive)) {
+            showHelpOverlay = !showHelpOverlay;
+            return true;
+        }
+
+        if (keyCode == 65 && !hasShiftDown() && !hasControlDown()) {
             selectedNodeIds.clear();
             selectedNodeIds.addAll(graph.getNodes().keySet());
             if (!selectedNodeIds.isEmpty()) {
@@ -2603,11 +3229,10 @@ public class NodeEditorScreen extends Screen {
             return true;
         }
 
-        // X — delete selection
         if (keyCode == 88) {
             deleteSelection(); return true;
         }
-        // Delete / Backspace when not in text field
+
         if (keyCode == 261) {
             deleteSelection(); return true;
         }
@@ -2647,7 +3272,6 @@ public class NodeEditorScreen extends Screen {
         }
     }
 
-    // ─── Actions ──────────────────────────────────────────────────────────────
     private void addNewNode(String type) {
         if (type.equals("jammer")) {
             long jammerCount = graph.getNodes().values().stream()
@@ -2662,11 +3286,10 @@ public class NodeEditorScreen extends Screen {
         String id = type + "_" + System.currentTimeMillis();
         double cx = ((this.width - SIDEBAR_W) / 2.0 - panX) / zoom - NODE_W / 2.0;
         double cy = (this.height / 2.0           - panY) / zoom - 30;
-        
-        // Clamp to background bounds
+
         cx = Math.max(10.0, Math.min(5120.0 - NODE_W - 10, cx));
         cy = Math.max(10.0, Math.min(3200.0 - 80.0, cy));
-        
+
         AlgoNode node;
         if (type.startsWith("display_board_")) {
             String[] parts = type.split("_");
@@ -2692,7 +3315,7 @@ public class NodeEditorScreen extends Screen {
         String base = "var"; int i = 1;
         while (graph.getVariables().containsKey(base + i)) i++;
         String name = base + i;
-        graph.getVariables().put(name, switch (type) { case "bool" -> "false"; case "number" -> "0"; default -> ""; });
+        graph.getVariables().put(name, switch (type) { case "bool" -> "false"; case "number" -> "0"; case "list" -> "{}"; default -> ""; });
         graph.getVariableTypes().put(name, type);
         selectedVar = name; selectedNode = null;
     }
@@ -2705,8 +3328,8 @@ public class NodeEditorScreen extends Screen {
         cx = Math.max(10.0, Math.min(5120.0 - NODE_W - 10, cx));
         cy = Math.max(10.0, Math.min(3200.0 - 80.0, cy));
         VariableNode node = new VariableNode(id, cx, cy);
-        node.setVariableName(name); 
-        graph.addNode(node); 
+        node.setVariableName(name);
+        graph.addNode(node);
         nodeOrder.add(id);
         selectedNode = node;
     }
@@ -2719,8 +3342,36 @@ public class NodeEditorScreen extends Screen {
         cx = Math.max(10.0, Math.min(5120.0 - NODE_W - 10, cx));
         cy = Math.max(10.0, Math.min(3200.0 - 80.0, cy));
         SetVariableNode node = new SetVariableNode(id, cx, cy);
-        node.setVariableName(name); 
-        graph.addNode(node); 
+        node.setVariableName(name);
+        graph.addNode(node);
+        nodeOrder.add(id);
+        selectedNode = node;
+    }
+
+    private void spawnGetList(String name) {
+        pushUndoState();
+        String id = "get_list_" + System.currentTimeMillis();
+        double cx = ((this.width - SIDEBAR_W) / 2.0 - panX) / zoom - NODE_W / 2.0;
+        double cy = (this.height / 2.0           - panY) / zoom - 30;
+        cx = Math.max(10.0, Math.min(5120.0 - NODE_W - 10, cx));
+        cy = Math.max(10.0, Math.min(3200.0 - 80.0, cy));
+        com.radiologistics.create.node.nodes.GetListNode node = new com.radiologistics.create.node.nodes.GetListNode(id, cx, cy);
+        node.setVariableName(name);
+        graph.addNode(node);
+        nodeOrder.add(id);
+        selectedNode = node;
+    }
+
+    private void spawnSetList(String name) {
+        pushUndoState();
+        String id = "set_list_" + System.currentTimeMillis();
+        double cx = ((this.width - SIDEBAR_W) / 2.0 - panX) / zoom - NODE_W / 2.0;
+        double cy = (this.height / 2.0           - panY) / zoom - 30;
+        cx = Math.max(10.0, Math.min(5120.0 - NODE_W - 10, cx));
+        cy = Math.max(10.0, Math.min(3200.0 - 80.0, cy));
+        com.radiologistics.create.node.nodes.SetListNode node = new com.radiologistics.create.node.nodes.SetListNode(id, cx, cy);
+        node.setVariableName(name);
+        graph.addNode(node);
         nodeOrder.add(id);
         selectedNode = node;
     }
@@ -2728,9 +3379,9 @@ public class NodeEditorScreen extends Screen {
     private void cycleVarType(String name) {
         pushUndoState();
         String cur  = graph.getVariableTypes().getOrDefault(name, "text");
-        String next = switch (cur) { case "text" -> "number"; case "number" -> "bool"; default -> "text"; };
+        String next = switch (cur) { case "text" -> "number"; case "number" -> "bool"; case "bool" -> "list"; default -> "text"; };
         graph.getVariableTypes().put(name, next);
-        graph.getVariables().put(name, switch (next) { case "bool" -> "false"; case "number" -> "0"; default -> ""; });
+        graph.getVariables().put(name, switch (next) { case "bool" -> "false"; case "number" -> "0"; case "list" -> "{}"; default -> ""; });
     }
 
     private void deleteVar(String name) {
@@ -2740,6 +3391,8 @@ public class NodeEditorScreen extends Screen {
         for (AlgoNode n : graph.getNodes().values()) {
             if (n instanceof VariableNode vn    && vn.getVariableName().equals(name))  vn.setVariableName("");
             if (n instanceof SetVariableNode sv && sv.getVariableName().equals(name))  sv.setVariableName("");
+            if (n instanceof com.radiologistics.create.node.nodes.GetListNode gl && gl.getVariableName().equals(name)) gl.setVariableName("");
+            if (n instanceof com.radiologistics.create.node.nodes.SetListNode sl && sl.getVariableName().equals(name)) sl.setVariableName("");
         }
         if (name.equals(selectedVar)) selectedVar = null;
     }
@@ -2760,15 +3413,19 @@ public class NodeEditorScreen extends Screen {
             undoHistory.remove(0);
         }
         undoHistory.add(tag);
+        isDirty = true;
+        autosaveTimer = 0;
+        redoHistory.clear();
     }
 
-    private void pushUndoState() {
+    public void pushUndoState() {
         pushUndoStateDirect(graph.toNBT());
     }
 
     private void performUndo() {
         if (!undoHistory.isEmpty()) {
             CompoundTag lastState = undoHistory.remove(undoHistory.size() - 1);
+            redoHistory.add(graph.toNBT());
             graph.loadNBT(lastState);
             nodeOrder.clear();
             nodeOrder.addAll(graph.getNodes().keySet());
@@ -2777,36 +3434,246 @@ public class NodeEditorScreen extends Screen {
             selectedVar = null;
             selectedNodeIds.clear();
             closeInlineEdit();
+            isDirty = true;
+            autosaveTimer = 0;
         }
     }
 
-    // ─── Coordinate helpers ───────────────────────────────────────────────────
-    /** Canvas X → screen X */
+    private void performRedo() {
+        if (!redoHistory.isEmpty()) {
+            CompoundTag nextState = redoHistory.remove(redoHistory.size() - 1);
+
+            if (!undoHistory.isEmpty()) {
+                CompoundTag top = undoHistory.get(undoHistory.size() - 1);
+                CompoundTag current = graph.toNBT();
+                if (!top.equals(current)) {
+                    if (undoHistory.size() >= MAX_UNDO_STATES) {
+                        undoHistory.remove(0);
+                    }
+                    undoHistory.add(current);
+                }
+            } else {
+                undoHistory.add(graph.toNBT());
+            }
+            graph.loadNBT(nextState);
+            nodeOrder.clear();
+            nodeOrder.addAll(graph.getNodes().keySet());
+            selectedNode = null;
+            selectedLink = null;
+            selectedVar = null;
+            selectedNodeIds.clear();
+            closeInlineEdit();
+            isDirty = true;
+            autosaveTimer = 0;
+        }
+    }
+
+    private void performCopy() {
+        if (selectedNodeIds.isEmpty()) return;
+        CompoundTag tag = new CompoundTag();
+        net.minecraft.nbt.ListTag nodesList = new net.minecraft.nbt.ListTag();
+        for (String id : selectedNodeIds) {
+            AlgoNode node = graph.getNodes().get(id);
+            if (node != null) {
+                nodesList.add(node.toNBT());
+            }
+        }
+        tag.put("nodes", nodesList);
+
+        net.minecraft.nbt.ListTag linksList = new net.minecraft.nbt.ListTag();
+        for (NodeLink link : graph.getLinks()) {
+            if (selectedNodeIds.contains(link.fromNode()) && selectedNodeIds.contains(link.toNode())) {
+                linksList.add(link.toNBT());
+            }
+        }
+        tag.put("links", linksList);
+
+        clipboardTag = tag;
+        pasteOffsetCount = 1;
+    }
+
+    private void performPaste() {
+        if (clipboardTag == null) return;
+        pushUndoState();
+
+        net.minecraft.nbt.ListTag nodesList = clipboardTag.getList("nodes", 10);
+        net.minecraft.nbt.ListTag linksList = clipboardTag.getList("links", 10);
+
+        Map<String, String> idMap = new HashMap<>();
+        List<AlgoNode> pastedNodes = new ArrayList<>();
+        double offset = 20 * pasteOffsetCount;
+        pasteOffsetCount++;
+
+        Random rand = new Random();
+        for (int i = 0; i < nodesList.size(); i++) {
+            CompoundTag nodeTag = nodesList.getCompound(i).copy();
+            String oldId = nodeTag.getString("id");
+            String type = nodeTag.getString("type");
+            double oldX = nodeTag.getDouble("x");
+            double oldY = nodeTag.getDouble("y");
+
+            double newX = oldX + offset;
+            double newY = oldY + offset;
+            newX = Math.max(10.0, Math.min(5120.0 - NODE_W - 10, newX));
+            newY = Math.max(10.0, Math.min(3200.0 - 80.0, newY));
+
+            String newId = type + "_" + System.currentTimeMillis() + "_" + rand.nextInt(1000);
+            idMap.put(oldId, newId);
+
+            nodeTag.putString("id", newId);
+            nodeTag.putDouble("x", newX);
+            nodeTag.putDouble("y", newY);
+
+            AlgoNode node = AlgoNode.fromNBT(nodeTag);
+            if (node != null) {
+                graph.addNode(node);
+                nodeOrder.add(newId);
+                pastedNodes.add(node);
+            }
+        }
+
+        for (int i = 0; i < linksList.size(); i++) {
+            CompoundTag linkTag = linksList.getCompound(i).copy();
+            String oldSrc = linkTag.getString("fromNode");
+            String oldDest = linkTag.getString("toNode");
+            String newSrc = idMap.get(oldSrc);
+            String newDest = idMap.get(oldDest);
+            if (newSrc != null && newDest != null) {
+                linkTag.putString("fromNode", newSrc);
+                linkTag.putString("toNode", newDest);
+                NodeLink link = NodeLink.fromNBT(linkTag);
+                if (link != null) {
+                    graph.getLinks().add(link);
+                }
+            }
+        }
+
+        selectedNodeIds.clear();
+        for (AlgoNode node : pastedNodes) {
+            selectedNodeIds.add(node.getId());
+        }
+        if (!pastedNodes.isEmpty()) {
+            selectedNode = pastedNodes.get(pastedNodes.size() - 1);
+        } else {
+            selectedNode = null;
+        }
+        selectedLink = null;
+        selectedVar = null;
+        isDirty = true;
+        autosaveTimer = 0;
+    }
+
+    private List<SearchableNode> getSearchableNodes() {
+        List<SearchableNode> list = new ArrayList<>();
+        for (String[] c : CONSTANT_CARDS) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : LOGIC_CARDS) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : MATH_CARDS) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : TEXT_CARDS) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getSignalsCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getLinkControllerCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getGyroscopeCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getServoCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getHelmetCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getAudioCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getMediaCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getGizmosCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : getCannonCards()) list.add(new SearchableNode(c[0], c[1], c[2]));
+        for (String[] c : VIEWER_CARDS) list.add(new SearchableNode(c[0], c[1], c[2]));
+        return list;
+    }
+
+    private void openQuickSearch() {
+        if (showQuickSearch) return;
+        showQuickSearch = true;
+        quickSearchX = Math.max(SIDEBAR_W + 10, Math.min(this.width - 150, lastMouseX));
+        quickSearchY = Math.max(10, Math.min(this.height - 180, lastMouseY));
+        quickSearchBox.setValue("");
+        quickSearchBox.setX((int)quickSearchX + 8);
+        quickSearchBox.setY((int)quickSearchY + 8);
+        quickSearchBox.setWidth(124);
+        quickSearchBox.visible = true;
+        quickSearchBox.setFocused(true);
+        this.setFocused(quickSearchBox);
+        updateQuickSearchMatches("");
+    }
+
+    private void closeQuickSearch() {
+        showQuickSearch = false;
+        quickSearchBox.visible = false;
+        quickSearchBox.setFocused(false);
+        quickSearchBox.setX(-600);
+        quickSearchBox.setY(-600);
+        quickSearchBox.setWidth(10);
+    }
+
+    private void onQuickSearchChange(String val) {
+        updateQuickSearchMatches(val);
+    }
+
+    private void updateQuickSearchMatches(String query) {
+        quickSearchMatches.clear();
+        String q = query.toLowerCase().trim();
+        List<SearchableNode> all = getSearchableNodes();
+        int count = 0;
+        for (SearchableNode node : all) {
+            if (q.isEmpty() || node.name.toLowerCase().contains(q) || node.type.toLowerCase().contains(q)) {
+                quickSearchMatches.add(new String[]{node.name, node.type, node.icon});
+                count++;
+                if (count >= 5) break;
+            }
+        }
+    }
+
+    private void spawnSearchedNode(String type) {
+        pushUndoState();
+        double cx = toCanvasX(quickSearchX);
+        double cy = toCanvasY(quickSearchY);
+        cx = Math.max(10.0, Math.min(5120.0 - NODE_W - 10, cx));
+        cy = Math.max(10.0, Math.min(3200.0 - 80.0, cy));
+
+        String id = type + "_" + System.currentTimeMillis() + "_" + new Random().nextInt(1000);
+        AlgoNode node = null;
+        if ("display_board".equals(type)) {
+            com.radiologistics.create.node.nodes.DisplayBoardNode dbn = new com.radiologistics.create.node.nodes.DisplayBoardNode(id, cx, cy);
+            dbn.setBoardPos(BlockPos.ZERO);
+            node = dbn;
+        } else {
+            node = AlgoNode.createNode(type, id, cx, cy);
+        }
+
+        if (node != null) {
+            graph.addNode(node);
+            nodeOrder.add(id);
+            selectedNode = node;
+            selectedLink = null;
+            selectedNodeIds.clear();
+            selectedNodeIds.add(id);
+            isDirty = true;
+            autosaveTimer = 0;
+        }
+    }
+
     private int toSX(double cx) { return (int)(cx * zoom + panX + SIDEBAR_W); }
-    /** Canvas Y → screen Y */
+
     private int toSY(double cy) { return (int)(cy * zoom + panY); }
-    /** Scale a canvas-space dimension to screen pixels */
+
     private int sD(double d)    { return Math.max(1, (int)(d * zoom)); }
-    /** Screen X → canvas X */
+
     private double toCanvasX(double sx) { return (sx - panX - SIDEBAR_W) / zoom; }
-    /** Screen Y → canvas Y */
+
     private double toCanvasY(double sy) { return (sy - panY) / zoom; }
 
-    /**
-     * Returns true when a wire from a port of srcType can feed into a port of destType.
-     * Allows implicit conversions: bool↔number, bool→text, number→text.
-     */
     private boolean portsAreCompatible(String srcType, String destType) {
         if (srcType.equals("any") || destType.equals("any")) return true;
         if (srcType.equals(destType)) return true;
-        // Bool ↔ Number (bool is treated as 0/1 in number context and vice versa)
+
         if ((srcType.equals("bool") && destType.equals("number"))
                 || (srcType.equals("number") && destType.equals("bool"))) return true;
-        // Bool → Text  ("true"/"false" representation)
+
         if (srcType.equals("bool") && destType.equals("text")) return true;
-        // Number → Text  (numeric value as string)
+
         if (srcType.equals("number") && destType.equals("text")) return true;
-        // Text → Number / Bool  (parsed at runtime by the receiving node)
+
         if (srcType.equals("text") && (destType.equals("number") || destType.equals("bool"))) return true;
         return false;
     }
@@ -2814,13 +3681,13 @@ public class NodeEditorScreen extends Screen {
     private String getPortType(AlgoNode node, String port, boolean isOutput) {
         String type = node.getType();
         if (isOutput) {
-            if (type.equals("bool") || type.equals("equal") || type.equals("not_equal") 
+            if (type.equals("bool") || type.equals("equal") || type.equals("not_equal")
                     || type.equals("greater_than") || type.equals("less_than")
                     || type.equals("or") || type.equals("and")
                     || type.equals("audio_play")) {
                 return "bool";
             }
-            if (type.equals("number") || type.equals("add") || type.equals("subtract") 
+            if (type.equals("number") || type.equals("add") || type.equals("subtract")
                     || type.equals("multiply") || type.equals("divide")
                     || type.equals("floor") || type.equals("sqrt") || type.equals("square")
                     || type.equals("atan2") || type.equals("invert") || type.equals("abs")
@@ -2830,11 +3697,11 @@ public class NodeEditorScreen extends Screen {
                     || type.equals("helmet_pos") || type.equals("helmet_rotation")) {
                 return "number";
             }
-            if (type.equals("text") || type.equals("active_target") || type.equals("display_link") 
+            if (type.equals("text") || type.equals("active_target") || type.equals("detected_objects") || type.equals("display_link")
                     || type.equals("text_split") || type.equals("text_join")
                     || type.equals("microphone") || type.equals("signal")
                     || type.equals("sound_play") || type.equals("text_speak")) {
-                if (type.equals("active_target") && !port.equals("name")) return "number";
+                if ((type.equals("active_target") || type.equals("detected_objects")) && !port.equals("name")) return "number";
                 return "text";
             }
             if (type.equals("color_rgb")) {
@@ -2843,7 +3710,7 @@ public class NodeEditorScreen extends Screen {
             if (type.equals("shape")) {
                 return "shape";
             }
-            if (type.equals("gizmos_2d") || type.equals("gizmos_3d") 
+            if (type.equals("gizmos_2d") || type.equals("gizmos_3d")
                     || type.equals("gizmos_combine") || type.equals("gizmos_view")) {
                 return "gizmos";
             }
@@ -2852,10 +3719,16 @@ public class NodeEditorScreen extends Screen {
             }
             return "any";
         } else {
-            // Inputs
+
             if (type.equals("audio_play")) {
                 if (port.equals("event")) return "bool";
                 if (port.equals("stream")) return "text";
+                return "any";
+            }
+            if (type.equals("custom_target")) {
+                if (port.equals("event")) return "bool";
+                if (port.equals("name")) return "text";
+                if (port.equals("x") || port.equals("y") || port.equals("z")) return "number";
                 return "any";
             }
             if (type.equals("antenna_output")) {
@@ -2870,12 +3743,12 @@ public class NodeEditorScreen extends Screen {
             }
             if (type.equals("shape")) return "number";
             if (type.equals("sound_play")) {
-                // link, volume, pitch
+
                 if (port.equals("link")) return "text";
                 return "number";
             }
             if (type.equals("text_speak")) {
-                // text, volume, pitch
+
                 if (port.equals("text")) return "text";
                 return "number";
             }
@@ -2887,8 +3760,8 @@ public class NodeEditorScreen extends Screen {
                 return "any";
             }
             if (type.equals("or") || type.equals("and")) return "bool";
-            if (type.equals("greater_than") || type.equals("less_than") 
-                    || type.equals("add") || type.equals("subtract") 
+            if (type.equals("greater_than") || type.equals("less_than")
+                    || type.equals("add") || type.equals("subtract")
                     || type.equals("multiply") || type.equals("divide")
                     || type.equals("floor") || type.equals("sqrt") || type.equals("square")
                     || type.equals("atan2") || type.equals("invert") || type.equals("abs")
@@ -2897,7 +3770,7 @@ public class NodeEditorScreen extends Screen {
                     || type.equals("color_rgb")) {
                 return "number";
             }
-            // link_output and redstone_output accept bool OR number on their power port
+
             if (type.equals("redstone_output") || type.equals("link_output")) {
                 return "any";
             }
@@ -2911,16 +3784,18 @@ public class NodeEditorScreen extends Screen {
                 return "text";
             }
             if (type.equals("text_join")) return "text";
-            if (type.equals("gizmos_2d") || type.equals("gizmos_3d")) {
+            if (type.equals("detected_objects")) {
+                if (port.equals("index")) return "number";
+                return "any";
+            }
+            if (port.equals("gizmos")) return "gizmos";
+            if (type.equals("gizmos_combine") && port.startsWith("g")) return "gizmos";
+            if (type.equals("gizmos_2d") || type.equals("gizmos_3d") || type.equals("camera_screen")) {
                 if (port.equals("shape")) return "shape";
                 if (port.equals("color")) return "color";
                 if (port.equals("text")) return "text";
+                if (port.equals("gizmos_3d") || port.equals("gizmos")) return "gizmos";
                 return "number";
-            }
-            if (type.equals("gizmos_combine") || type.equals("gizmos_view")
-                    || type.equals("helmet_screen") || type.equals("screen")) {
-                if (port.startsWith("g") || port.equals("gizmos")) return "gizmos";
-                return "any";
             }
             return "any";
         }
@@ -2929,60 +3804,52 @@ public class NodeEditorScreen extends Screen {
     private int getPortColor(AlgoNode node, String port, boolean isOutput) {
         String type = getPortType(node, port, isOutput);
         return switch (type) {
-            case "bool" -> 0xFFCC8822; // Orange
-            case "number" -> 0xFF5090D0; // Blue
-            case "text" -> 0xFF4CAF50; // Green
-            case "color" -> 0xFFE91E63; // Pink
-            case "shape" -> 0xFF9C27B0; // Purple
-            case "gizmos" -> 0xFF00FFFF; // Cyan / Bright Blue
-            default -> 0xFFCCCCCC; // Grey
+            case "bool" -> 0xFFCC8822;
+            case "number" -> 0xFF5090D0;
+            case "text" -> 0xFF4CAF50;
+            case "color" -> 0xFFE91E63;
+            case "shape" -> 0xFF9C27B0;
+            case "gizmos" -> 0xFF00FFFF;
+            default -> 0xFFCCCCCC;
         };
     }
 
-    // ─── Drawing helpers ──────────────────────────────────────────────────────
     private void drawRivet(GuiGraphics g, int x, int y) {
-        g.fill(x, y, x + 2, y + 2, 0xFF141312); // Rivet body shadow
-        g.fill(x, y, x + 1, y + 1, 0xFF888481); // Rivet head highlight
+        g.fill(x, y, x + 2, y + 2, 0xFF141312);
+        g.fill(x, y, x + 1, y + 1, 0xFF888481);
     }
 
     private void drawBeveledPlate(GuiGraphics g, int x, int y, int w, int h, MaterialTheme theme, boolean selected) {
-        // Outermost border: dark outline shadow
-        int outlineCol = selected ? 0xFFFFA500 : 0xFF141312; // Orange glow if selected, dark outline otherwise
+
+        int outlineCol = selected ? 0xFFFFA500 : 0xFF141312;
         g.fill(x, y, x + w, y + h, outlineCol);
-        
-        // 3D Bevel highlight on the frame inside edges
+
         int frameHighlight = selected ? 0xFFFFD700 : theme.highlight;
         int frameShadow = selected ? 0xFFCC6600 : theme.shadow;
         int primary = selected ? 0xFFFFA500 : theme.primary;
-        
-        // Top and Left light highlight
+
         g.fill(x + 1, y + 1, x + w - 1, y + 2, frameHighlight);
         g.fill(x + 1, y + 2, x + 2, y + h - 1, frameHighlight);
-        
-        // Right and Bottom shadow
+
         g.fill(x + w - 2, y + 2, x + w - 1, y + h - 2, frameShadow);
         g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, frameShadow);
-        
-        // Frame thickness (middle border)
+
         g.fill(x + 2, y + 2, x + w - 2, y + 3, primary);
         g.fill(x + 2, y + 3, x + 3, y + h - 3, primary);
         g.fill(x + w - 3, y + 3, x + w - 2, y + h - 3, primary);
         g.fill(x + 2, y + h - 3, x + w - 2, y + h - 2, primary);
-        
-        // Body background fill
+
         g.fill(x + 3, y + 3, x + w - 3, y + h - 3, theme.bodyBg);
     }
 
     private void drawInsetPanel(GuiGraphics g, int x, int y, int w, int h, MaterialTheme theme) {
-        // Outline shadow top/left
+
         g.fill(x, y, x + w, y + h, theme.shadow);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0xFF141312); // darker outline inside
-        
-        // Inset highlight (bottom and right edge)
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0xFF141312);
+
         g.fill(x + 1, y + h - 1, x + w, y + h, theme.highlight);
         g.fill(x + w - 1, y + 1, x + w, y + h, theme.highlight);
-        
-        // Inside fill
+
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, theme.insetBg);
     }
 
@@ -3040,19 +3907,18 @@ public class NodeEditorScreen extends Screen {
     }
 
     private void drawPort(GuiGraphics g, int cx, int cy, int color, boolean hollow, boolean isOutput) {
-        int ringColor = isOutput ? 0xFFC8963E : 0xFFB76D55; // Brass output, Copper input
-        
-        // 7x7 octagonal/rounded bushing ring
-        g.fill(cx - 3, cy - 2, cx + 4, cy + 3, 0xFF141312); // outer shadow vertical
-        g.fill(cx - 2, cy - 3, cx + 3, cy + 4, 0xFF141312); // outer shadow horizontal
-        
-        g.fill(cx - 2, cy - 2, cx + 3, cy + 3, ringColor); // metallic collar
-        g.fill(cx - 1, cy - 1, cx + 2, cy + 2, 0xFF110F0E); // dark hole inside
-        
+        int ringColor = isOutput ? 0xFFC8963E : 0xFFB76D55;
+
+        g.fill(cx - 3, cy - 2, cx + 4, cy + 3, 0xFF141312);
+        g.fill(cx - 2, cy - 3, cx + 3, cy + 4, 0xFF141312);
+
+        g.fill(cx - 2, cy - 2, cx + 3, cy + 3, ringColor);
+        g.fill(cx - 1, cy - 1, cx + 2, cy + 2, 0xFF110F0E);
+
         if (!hollow) {
-            // Plugged wire: center color with 3D highlight
+
             g.fill(cx - 1, cy - 1, cx + 2, cy + 2, color);
-            g.fill(cx - 1, cy - 1, cx, cy, 0xFFFFFFFF); // tiny white reflection
+            g.fill(cx - 1, cy - 1, cx, cy, 0xFFFFFFFF);
         }
     }
 
@@ -3080,13 +3946,11 @@ public class NodeEditorScreen extends Screen {
         double co = Math.max(30, dx / 2);
         double ccx1 = startX + co, ccy1 = cy1;
         double ccx2 = endX - co, ccy2 = cy2;
-        
-        // Create-style color palette
-        int outlineCol = selected ? 0xFF4A3212 : 0xFF35201B; // dark brass / dark copper
-        int coreCol = selected ? 0xFFC8963E : 0xFFB76D55;    // brass / copper
-        int highlightCol = selected ? 0xFFE9C583 : 0xFFDCA28E; // bright brass / bright copper
 
-        // Cache calculated Bezier points to prevent redrawing math overhead
+        int outlineCol = selected ? 0xFF4A3212 : 0xFF35201B;
+        int coreCol = selected ? 0xFFC8963E : 0xFFB76D55;
+        int highlightCol = selected ? 0xFFE9C583 : 0xFFDCA28E;
+
         double[] nxs = new double[steps + 1];
         double[] nys = new double[steps + 1];
         for (int i = 0; i <= steps; i++) {
@@ -3099,42 +3963,156 @@ public class NodeEditorScreen extends Screen {
         int activeSteps = (int)((steps + 1) * growPct);
         if (activeSteps > steps + 1) activeSteps = steps + 1;
 
-        // 1. Draw outline
         for (int i = 0; i < activeSteps; i++) {
             g.fill((int)nxs[i] - 2, (int)nys[i] - 2, (int)nxs[i] + 2, (int)nys[i] + 2, outlineCol);
         }
 
-        // 2. Draw core
         for (int i = 0; i < activeSteps; i++) {
             g.fill((int)nxs[i] - 1, (int)nys[i] - 1, (int)nxs[i] + 1, (int)nys[i] + 1, coreCol);
         }
 
-        // 3. Draw highlight
         for (int i = 0; i < activeSteps; i++) {
             g.fill((int)nxs[i] - 1, (int)nys[i] - 1, (int)nxs[i], (int)nys[i], highlightCol);
         }
     }
 
-    /**
-     * Draws a cubic bezier in canvas space.
-     * Control points are in canvas-space.
-     */
     private void drawBezierCanvas(GuiGraphics g, double cx1, double cy1,
                                    double cx2, double cy2, int color) {
         drawCreatePipe(g, cx1, cy1, cx2, cy2, true);
     }
 
-    /** Redstone-style dashed wire: alternates bright-red / dark-red segments. */
     private void drawRsWireCanvas(GuiGraphics g, double cx1, double cy1,
                                    double cx2, double cy2) {
         drawCreatePipe(g, cx1, cy1, cx2, cy2, false);
     }
 
-    // ─── Lookup helpers ───────────────────────────────────────────────────────
+    private boolean isIndexedNode(AlgoNode node) {
+        return node instanceof com.radiologistics.create.node.nodes.ServoControlNode
+            || node instanceof com.radiologistics.create.node.nodes.ServoAngleNode
+            || node instanceof com.radiologistics.create.node.nodes.GyroscopeNode
+            || node instanceof com.radiologistics.create.node.nodes.GyroscopePositionNode
+            || node instanceof com.radiologistics.create.node.nodes.ScreenNode
+            || node instanceof com.radiologistics.create.node.nodes.CameraScreenNode;
+    }
+
+    private int getIndexedNodeValue(AlgoNode node) {
+        if (node instanceof com.radiologistics.create.node.nodes.ServoControlNode scn) return scn.getServoIndex();
+        if (node instanceof com.radiologistics.create.node.nodes.ServoAngleNode san) return san.getServoIndex();
+        if (node instanceof com.radiologistics.create.node.nodes.GyroscopeNode gn) return gn.getGyroIndex();
+        if (node instanceof com.radiologistics.create.node.nodes.GyroscopePositionNode gpn) return gpn.getGyroIndex();
+        if (node instanceof com.radiologistics.create.node.nodes.ScreenNode sn) return sn.getScreenIndex();
+        if (node instanceof com.radiologistics.create.node.nodes.CameraScreenNode csn) return csn.getScreenIndex();
+        return 0;
+    }
+
+    private void setIndexedNodeValue(AlgoNode node, int val) {
+        if (node instanceof com.radiologistics.create.node.nodes.ServoControlNode scn) scn.setServoIndex(val);
+        if (node instanceof com.radiologistics.create.node.nodes.ServoAngleNode san) san.setServoIndex(val);
+        if (node instanceof com.radiologistics.create.node.nodes.GyroscopeNode gn) gn.setGyroIndex(val);
+        if (node instanceof com.radiologistics.create.node.nodes.GyroscopePositionNode gpn) gpn.setGyroIndex(val);
+        if (node instanceof com.radiologistics.create.node.nodes.ScreenNode sn) sn.setScreenIndex(val);
+        if (node instanceof com.radiologistics.create.node.nodes.CameraScreenNode csn) csn.setScreenIndex(val);
+    }
+
+    private void cycleNodeIndex(AlgoNode node) {
+        if (node instanceof com.radiologistics.create.node.nodes.ServoControlNode scn) {
+            pushUndoState();
+            List<Integer> indices = getConnectedServoIndices();
+            if (indices.isEmpty()) {
+                scn.setServoIndex(0);
+            } else {
+                int current = scn.getServoIndex();
+                int idx = indices.indexOf(current);
+                if (idx == -1) {
+                    scn.setServoIndex(indices.get(0));
+                } else {
+                    scn.setServoIndex(indices.get((idx + 1) % indices.size()));
+                }
+            }
+            playClickSound();
+        } else if (node instanceof com.radiologistics.create.node.nodes.ServoAngleNode san) {
+            pushUndoState();
+            List<Integer> indices = getConnectedServoIndices();
+            if (indices.isEmpty()) {
+                san.setServoIndex(0);
+            } else {
+                int current = san.getServoIndex();
+                int idx = indices.indexOf(current);
+                if (idx == -1) {
+                    san.setServoIndex(indices.get(0));
+                } else {
+                    san.setServoIndex(indices.get((idx + 1) % indices.size()));
+                }
+            }
+            playClickSound();
+        } else if (node instanceof com.radiologistics.create.node.nodes.GyroscopeNode gn) {
+            pushUndoState();
+            List<Integer> indices = getConnectedGyroIndices();
+            if (indices.isEmpty()) {
+                gn.setGyroIndex(0);
+            } else {
+                int current = gn.getGyroIndex();
+                int idx = indices.indexOf(current);
+                if (idx == -1) {
+                    gn.setGyroIndex(indices.get(0));
+                } else {
+                    gn.setGyroIndex(indices.get((idx + 1) % indices.size()));
+                }
+            }
+            playClickSound();
+        } else if (node instanceof com.radiologistics.create.node.nodes.GyroscopePositionNode gpn) {
+            pushUndoState();
+            List<Integer> indices = getConnectedGyroIndices();
+            if (indices.isEmpty()) {
+                gpn.setGyroIndex(0);
+            } else {
+                int current = gpn.getGyroIndex();
+                int idx = indices.indexOf(current);
+                if (idx == -1) {
+                    gpn.setGyroIndex(indices.get(0));
+                } else {
+                    gpn.setGyroIndex(indices.get((idx + 1) % indices.size()));
+                }
+            }
+            playClickSound();
+        } else if (node instanceof com.radiologistics.create.node.nodes.ScreenNode sn) {
+            pushUndoState();
+            List<Integer> indices = getConnectedScreenIndices();
+            if (indices.isEmpty()) {
+                sn.setScreenIndex(0);
+            } else {
+                int current = sn.getScreenIndex();
+                int idx = indices.indexOf(current);
+                if (idx == -1) {
+                    sn.setScreenIndex(indices.get(0));
+                } else {
+                    sn.setScreenIndex(indices.get((idx + 1) % indices.size()));
+                }
+            }
+            playClickSound();
+        } else if (node instanceof com.radiologistics.create.node.nodes.CameraScreenNode csn) {
+            pushUndoState();
+            List<Integer> indices = getConnectedScreenIndices();
+            if (indices.isEmpty()) {
+                csn.setScreenIndex(0);
+            } else {
+                int current = csn.getScreenIndex();
+                int idx = indices.indexOf(current);
+                if (idx == -1) {
+                    csn.setScreenIndex(indices.get(0));
+                } else {
+                    csn.setScreenIndex(indices.get((idx + 1) % indices.size()));
+                }
+            }
+            playClickSound();
+        }
+    }
+
     private int propRowCount(AlgoNode node) {
+        if (isIndexedNode(node)) return 0;
         if (node instanceof com.radiologistics.create.node.nodes.CommentNode
                 || node instanceof HelmetScreenNode) return 0;
-        // Pure math/logic operator nodes have no property row
+
         if (node instanceof EqualNode || node instanceof NotEqualNode
                 || node instanceof GreaterThanNode || node instanceof LessThanNode
                 || node instanceof AddNode || node instanceof SubtractNode
@@ -3162,40 +4140,41 @@ public class NodeEditorScreen extends Screen {
                 || node instanceof ScreenNode
                 || node instanceof DisplayBoardNode
                 || node instanceof com.radiologistics.create.node.nodes.CannonRotNode
-                || node instanceof com.radiologistics.create.node.nodes.GizmosViewNode) return 0;
+                || node instanceof com.radiologistics.create.node.nodes.GizmosViewNode
+                || node instanceof com.radiologistics.create.node.nodes.CameraScreenNode) return 0;
         return 1;
     }
 
     private int nodeHeaderColor(String type) {
         return switch (type) {
-            case "signal"                 -> 0xFF4F6E80; // Zinc/Blue
-            case "bool"                   -> 0xFFB76D55; // Copper/Red-Brown
-            case "number"                 -> 0xFF7F8485; // Andesite/Gray
-            case "text"                   -> 0xFFC8963E; // Brass/Yellow
-            case "comment"                -> 0xFF5F5A57; // Dark Grey/Iron
-            case "equal","not_equal"      -> 0xFFB76D55; // Copper
-            case "greater_than","less_than" -> 0xFFB76D55; // Copper
-            case "or","and"               -> 0xFFB76D55; // Copper
-            case "add","subtract","multiply","divide" -> 0xFF7F8485; // Andesite
-            case "floor","sqrt","square"  -> 0xFF7F8485; // Andesite
-            case "atan2"                  -> 0xFF7F8485; // Andesite
-            case "invert","abs"           -> 0xFF7F8485; // Andesite
-            case "sin","cos","tan","ctg","random","degree_vector"  -> 0xFF7F8485; // Andesite
-            case "if"                     -> 0xFFB76D55; // Copper
-            case "redstone_output"        -> 0xFF9E2A2B; // Redstone
-            case "jammer"                 -> 0xFF9E2A2B; // Jammer
-            case "link_input","link_output" -> 0xFFD2691E; // Industrial Orange
-            case "gyroscope","gyroscope_position" -> 0xFF5C3C6B; // Obsidian/Purple
-            case "antenna_output" -> 0xFF4F6E80; // Wireless/Zinc
-            case "variable","set_variable"-> 0xFFC97C8E; // Rose Quartz
-            case "active_target"          -> 0xFF5C3C6B; // Target/Obsidian
-            case "bool_viewer"            -> 0xFFB76D55; // Copper
-            case "number_viewer"          -> 0xFF7F8485; // Andesite
-            case "text_viewer"            -> 0xFFC8963E; // Brass
-            case "display_link"           -> 0xFFC8963E; // Brass
-            case "text_split","text_join","text_speak","sound_play","microphone","audio_play" -> 0xFFC8963E; // Brass
+            case "signal"                 -> 0xFF4F6E80;
+            case "bool"                   -> 0xFFB76D55;
+            case "number"                 -> 0xFF7F8485;
+            case "text"                   -> 0xFFC8963E;
+            case "comment"                -> 0xFF5F5A57;
+            case "equal","not_equal"      -> 0xFFB76D55;
+            case "greater_than","less_than" -> 0xFFB76D55;
+            case "or","and"               -> 0xFFB76D55;
+            case "add","subtract","multiply","divide" -> 0xFF7F8485;
+            case "floor","sqrt","square"  -> 0xFF7F8485;
+            case "atan2"                  -> 0xFF7F8485;
+            case "invert","abs"           -> 0xFF7F8485;
+            case "sin","cos","tan","ctg","random","degree_vector"  -> 0xFF7F8485;
+            case "if"                     -> 0xFFB76D55;
+            case "redstone_output"        -> 0xFF9E2A2B;
+            case "jammer"                 -> 0xFF9E2A2B;
+            case "link_input","link_output" -> 0xFFD2691E;
+            case "gyroscope","gyroscope_position" -> 0xFF5C3C6B;
+            case "antenna_output" -> 0xFF4F6E80;
+            case "variable","set_variable","get_list","set_list"-> 0xFFC97C8E;
+            case "active_target","detected_objects","custom_target" -> 0xFF5C3C6B;
+            case "bool_viewer"            -> 0xFFB76D55;
+            case "number_viewer"          -> 0xFF7F8485;
+            case "text_viewer"            -> 0xFFC8963E;
+            case "display_link"           -> 0xFFC8963E;
+            case "text_split","text_join","text_speak","sound_play","microphone","audio_play" -> 0xFFC8963E;
             case "helmet_pos","helmet_rotation","helmet_screen" -> 0xFFC8963E;
-            case "camera","screen","display_board" -> 0xFFC8963E;
+            case "camera","screen","display_board","camera_screen","servo_control","servo_angle" -> 0xFFC8963E;
             case "cannon_rot"             -> 0xFF5C3C6B;
             case "gizmos_2d","gizmos_3d","gizmos_combine","gizmos_view" -> 0xFFB76D55;
             default                       -> 0xFF5F5A57;
@@ -3249,7 +4228,11 @@ public class NodeEditorScreen extends Screen {
             case "jammer"          -> "Jammer";
             case "variable"        -> "Get Var";
             case "set_variable"    -> "Set Var";
+            case "get_list"        -> "Get List";
+            case "set_list"        -> "Set List";
             case "active_target"   -> "Active Target";
+            case "custom_target"   -> "Custom Target";
+            case "detected_objects" -> "Detected Objects";
             case "bool_viewer"     -> "Bool View";
             case "number_viewer"   -> "Num View";
             case "text_viewer"     -> "Text View";
@@ -3270,13 +4253,16 @@ public class NodeEditorScreen extends Screen {
             case "camera"          -> "Cassette Reader";
             case "cannon_rot"      -> "Cannon Rot";
             case "screen"          -> "Screen Node";
+            case "camera_screen"   -> "Camera Screen";
+            case "servo_control"   -> "Servo Ctrl";
+            case "servo_angle"     -> "Servo Angle";
             case "display_board"   -> "Display Board";
             default                -> type;
         };
     }
 
     private int varTypeColor(String type) {
-        return switch (type) { case "number" -> 0xFF1A3A5A; case "bool" -> 0xFF3A2A1A; default -> 0xFF1A2A1A; };
+        return switch (type) { case "number" -> 0xFF1A3A5A; case "bool" -> 0xFF3A2A1A; case "list" -> 0xFF3A1A3A; default -> 0xFF1A2A1A; };
     }
 
     private String shortItem(String id) {
@@ -3295,7 +4281,6 @@ public class NodeEditorScreen extends Screen {
         } catch (Exception ignored) {}
         return ItemStack.EMPTY;
     }
-
 
     private String trunc(String s, int max) {
         if (s == null) return ""; return s.length() > max ? s.substring(0, max - 1) + "…" : s;
@@ -3359,35 +4344,30 @@ public class NodeEditorScreen extends Screen {
 
     private void drawCreateButton(GuiGraphics g, String label, int x, int y, int w, int h, double mx, double my, boolean brassStyle) {
         boolean hover = mx >= x && mx < x + w && my >= y && my < y + h;
-        
-        // Outline (shadow)
+
         g.fill(x, y, x + w, y + h, 0xFF141312);
-        
-        // Base plate colors
+
         int bg = brassStyle ? (hover ? 0xFFD8A64E : 0xFFC8963E) : (hover ? 0xFF6A6D6E : 0xFF5A5D5E);
         int highlight = brassStyle ? 0xFFE9C583 : 0xFF808284;
         int shadow = brassStyle ? 0xFF8C5F1C : 0xFF383A3B;
-        
-        // Draw beveled faces
+
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
-        // Highlight top & left
+
         g.fill(x + 1, y + 1, x + w - 1, y + 2, highlight);
         g.fill(x + 1, y + 1, x + 2, y + h - 1, highlight);
-        // Shadow bottom & right
+
         g.fill(x + w - 2, y + 1, x + w - 1, y + h - 1, shadow);
         g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, shadow);
-        
-        // Inset face
+
         g.fill(x + 3, y + 3, x + w - 3, y + h - 3, 0xFF141312);
         int faceBg = brassStyle ? (hover ? 0xFFB8860B : 0xFF996515) : (hover ? 0xFF4E5152 : 0xFF3A3D3E);
         g.fill(x + 4, y + 4, x + w - 4, y + h - 4, faceBg);
-        
-        // Text with engraved drop shadow
+
         int tw = this.font.width(label);
         int tx = x + (w - tw) / 2;
         int ty = y + (h - 9) / 2;
-        
-        g.drawString(this.font, label, tx + 1, ty + 1, 0x80000000); // drop shadow
+
+        g.drawString(this.font, label, tx + 1, ty + 1, 0x80000000);
         int textColor = hover ? 0xFFFFFFFF : (brassStyle ? 0xFFFFEAA0 : 0xFFE0E0E0);
         g.drawString(this.font, label, tx, ty, textColor);
     }
@@ -3436,14 +4416,14 @@ public class NodeEditorScreen extends Screen {
                 pushUndoState();
                 Set<String> oldIds = new HashSet<>(graph.getNodes().keySet());
                 graph.mergeNBT(nbt);
-                
+
                 List<String> newImportedIds = new ArrayList<>();
                 for (String id : graph.getNodes().keySet()) {
                     if (!oldIds.contains(id)) {
                         newImportedIds.add(id);
                     }
                 }
-                
+
                 double maxX = 0;
                 double maxY = 0;
                 for (String id : newImportedIds) {
@@ -3461,7 +4441,7 @@ public class NodeEditorScreen extends Screen {
                         }
                     }
                 }
-                
+
                 nodeOrder.addAll(newImportedIds);
                 selectedNode = null;
                 selectedLink = null;
@@ -3547,7 +4527,7 @@ public class NodeEditorScreen extends Screen {
             List<String> lines = splitComment(fullText, NODE_W - 16);
             return nhH + lines.size() * 10 + 13;
         } else if (node instanceof com.radiologistics.create.node.nodes.GizmosViewNode) {
-            // Extra tall to hold the 80px mini canvas preview
+
             int maxP = Math.max(node.getInputPorts().size(), node.getOutputPorts().size());
             return nhH + 4 + maxP * ROW_H + 84;
         } else {
@@ -3555,11 +4535,24 @@ public class NodeEditorScreen extends Screen {
             List<String> outs = node.getOutputPorts();
             int maxP  = Math.max(ins.size(), outs.size());
             int prCnt = propRowCount(node);
+
+            if (node instanceof TextNode tn && expandedTextNodes.contains(node.getId())) {
+                boolean editing = node.getId().equals(inlineNodeId) && inlineActive;
+                String val = editing && "text".equals(inlineField) ? inlineBox.getValue() + "_" : tn.getText();
+                List<String> lines = splitComment("\"" + val + "\"", NODE_W - 16);
+                int multilineH = lines.size() * 10 + 6;
+                return nhH + 4 + maxP * ROW_H + multilineH + 6;
+            } else if (node instanceof TextViewerNode tvn && expandedTextNodes.contains(node.getId())) {
+                String val = tvn.hasValue() ? tvn.getLastValue() : "—";
+                List<String> lines = splitComment(val, NODE_W - 16);
+                int multilineH = lines.size() * 10 + 6;
+                return nhH + 4 + maxP * ROW_H + multilineH + 6;
+            }
+
             return nhH + 4 + maxP * ROW_H + (prCnt > 0 ? (prCnt * PROP_H + 2) : 0) + 6;
         }
     }
 
-    // ─── Ponder Data Structures ───────────────────────────────────────────────
     public static class PonderNode {
         public String type;
         public String id;
@@ -3646,196 +4639,219 @@ public class NodeEditorScreen extends Screen {
         }
     }
 
-    // ─── Concise Descriptions Registry ─────────────────────────────────────────
     private String getConciseDescription(String type, boolean isUa) {
         return switch (type) {
-            case "signal" -> isUa 
+            case "signal" -> isUa
                 ? "Зчитує силу та значення бездротового радіосигналу на вибраному каналі. Використовується для побудови систем віддаленого контролю та радіоприймачів."
                 : "Reads wireless signal strength and value on the selected channel. Used to build remote monitoring systems and radio receivers.";
-            case "bool" -> isUa 
+            case "bool" -> isUa
                 ? "Логічна константа (TRUE/FALSE). Використовується для ручного встановлення перемикачів, активації умов чи блокувальних ліній."
                 : "A constant boolean (TRUE/FALSE). Used to manually set toggle switches, conditional triggers, or override logic lines.";
-            case "number" -> isUa 
+            case "number" -> isUa
                 ? "Числова константа (підтримує десяткові дроби). Використовується для статичних налаштувань лімітів швидкості, затримок чи координат."
                 : "A constant numeric value (supports decimals). Used to hardcode limits, speed variables, coordinate offsets, or timers.";
-            case "text" -> isUa 
+            case "text" -> isUa
                 ? "Текстова константа. Використовується для вказання назв радіоканалів, глобальних змінних, підписів на табло або повідомлень TTS."
                 : "A constant text string. Used to specify radio channel names, global variables, display labels, or TTS speech lines.";
-            case "add" -> isUa 
+            case "add" -> isUa
                 ? "Додає два числа (A + B). Використовується для зміщення координат, об'єднання показників сенсорів або розрахунку дальності цілі."
                 : "Adds two numbers (A + B). Used to offset coordinates, combine sensor readings, or calculate target distances.";
-            case "subtract" -> isUa 
+            case "subtract" -> isUa
                 ? "Віднімає B від A (A - B). Використовується для вимірювання відхилень кутів, відносного положення або розрахунку відстані між об'єктами."
                 : "Subtracts B from A (A - B). Used to calculate relative positions, coordinate differences, or distance between objects.";
-            case "multiply" -> isUa 
+            case "multiply" -> isUa
                 ? "Множить два вхідні числа (A * B). Корисно для масштабування чутливості керування, переведення одиниць виміру або підсилення сигналу."
                 : "Multiplies two numbers (A * B). Useful for scaling control sensitivity, converting units, or multiplying signal strengths.";
-            case "divide" -> isUa 
+            case "divide" -> isUa
                 ? "Ділить число A на B (A / B). Використовується для нормалізації показників, розрахунку частот або пропорційного розподілу значень."
                 : "Divides A by B (A / B). Used to normalize values, compute ratios, or scale coordinates proportionally.";
-            case "equal" -> isUa 
+            case "equal" -> isUa
                 ? "Порівнює два значення на рівність, повертаючи TRUE якщо вони збігаються. Використовується для підтвердження досягнення цільової точки."
                 : "Compares two values for equality, returning TRUE if they match. Used to check if a specific state or target coordinate is reached.";
-            case "not_equal" -> isUa 
+            case "not_equal" -> isUa
                 ? "Повертає TRUE, якщо вхідні значення відрізняються. Корисно для тригерів виявлення змін та автоматичного скидання систем."
                 : "Returns TRUE if inputs are different. Useful for change-detection triggers or automated system reset logic.";
-            case "greater_than" -> isUa 
+            case "greater_than" -> isUa
                 ? "Повертає TRUE, якщо A більше за B. Використовується для порогів безпеки (наприклад, перевищення висоти чи небезпечна швидкість)."
                 : "Returns TRUE if A is greater than B. Used for threshold triggers like altitude limits, overload safety, or range checks.";
-            case "less_than" -> isUa 
+            case "less_than" -> isUa
                 ? "Повертає TRUE, якщо A менше за B. Використовується для сигналізаторів низького заряду, перевірки близькості ворогів або мінімумів."
                 : "Returns TRUE if A is less than B. Used for low-fuel/energy warning triggers, close proximity checks, or minimum thresholds.";
-            case "or" -> isUa 
+            case "or" -> isUa
                 ? "Логічне АБО двох Bool-значень. Повертає TRUE, якщо хоча б одна з умов виконується. Зручно для об'єднання кількох аварійних датчиків."
                 : "Logical OR of two Bool values. Returns TRUE if at least one input is TRUE. Useful for merging multiple emergency alarm lines.";
-            case "and" -> isUa 
+            case "and" -> isUa
                 ? "Логічне І двох Bool-значень. Повертає TRUE, якщо ВСІ умови виконуються. Використовується як запобіжник у двофакторних системах запуску."
                 : "Logical AND of two Bool values. Returns TRUE only if all inputs are TRUE. Used for multi-condition safety interlocks.";
-            case "if" -> isUa 
+            case "if" -> isUa
                 ? "Пропускає значення, якщо логічна умова є TRUE, інакше вихід залишається порожнім. Дозволяє створювати умовні розгалуження в програмах."
                 : "Passes the input value if the condition is TRUE, otherwise blocks it. Allows creating conditional logic routing in programs.";
-            case "floor" -> isUa 
+            case "floor" -> isUa
                 ? "Округлює число вниз до найближчого цілого. Використовується для прив'язки координат до сітки блоків перед відправкою команд."
                 : "Rounds the number down to the nearest integer. Used to align coordinates to block grids before triggering actions.";
-            case "sqrt" -> isUa 
+            case "sqrt" -> isUa
                 ? "Обчислює квадратний корінь числа. Необхідно для розрахунку гіпотенуз, євклідових відстаней між точками за формулою Піфагора."
                 : "Calculates the square root of a number. Crucial for Euclidean distance formula and geometric math.";
-            case "square" -> isUa 
+            case "square" -> isUa
                 ? "Зводит число у квадрат (A^2). Використовується у розрахунках дальності та квадратичних прискорень."
                 : "Squares the input value (A^2). Commonly used in distance mathematics and quadratic scaling.";
-            case "abs" -> isUa 
+            case "abs" -> isUa
                 ? "Повертає абсолютне (додатне) значення числа (|A|). Дозволяє вимірювати лінійне відхилення незалежно від напрямку руху."
                 : "Returns the absolute (positive) value of a number. Allows measuring delta offset sizes regardless of positive/negative direction.";
-            case "invert" -> isUa 
+            case "invert" -> isUa
                 ? "Змінює знак числа на протилежний (множить на -1). Використовується для реверсування осей руху, зміни ліворуч/праворуч."
                 : "Inverts the sign of the input number. Used to reverse control axis directions or mirror coordinates.";
-            case "sin" -> isUa 
+            case "sin" -> isUa
                 ? "Обчислює синус кута (у градусах). Дозволяє генерувати плавні хвильові рухи, проектувати вектори або створювати автоколивні системи."
                 : "Calculates the sine of an angle in degrees. Used to program wave movements, project vectors, or create oscillating automations.";
-            case "cos" -> isUa 
+            case "cos" -> isUa
                 ? "Обчислює косинус кута (у градусах). Необхідно для розрахунку горизонтальних проекцій та кругових траєкторій руху."
                 : "Calculates the cosine of an angle in degrees. Essential for computing directional coordinates and circular movements.";
-            case "tan" -> isUa 
+            case "tan" -> isUa
                 ? "Обчислює тангенс кута. Використовується в геометрії та тригонометричному масштабуванні."
                 : "Calculates the tangent of an angle in degrees. Used in advanced geometry and trigonometric positioning.";
-            case "ctg" -> isUa 
+            case "ctg" -> isUa
                 ? "Обчислює котангенс кута. Корисно для розширених просторових розрахунків."
                 : "Calculates the cotangent of an angle in degrees. Used in specialized geometry calculations.";
-            case "atan2" -> isUa 
+            case "atan2" -> isUa
                 ? "Обчислює кут напрямку у градусах за координатами Y та X. Необхідно для наведення турелей та радарів на цілі."
                 : "Calculates the direction angle in degrees from Y and X coords. Essential for pointing turrets and radars at specific targets.";
-            case "random" -> isUa 
+            case "random" -> isUa
                 ? "Генерує випадкове число у вказаному діапазоні. Застосовується для хаотичного патрулювання, шумів або випадкових інтервалів."
                 : "Generates a random number within limits. Used for random turret sweep patterns, delays, or decorative graphic noise.";
-            case "degree_vector" -> isUa 
+            case "degree_vector" -> isUa
                 ? "Обчислює найкоротшу кутову різницю (-180..180 градусів) між двома напрямками. Запобігає обертанню турелі на 360 градусів."
                 : "Calculates the shortest angle delta (-180 to 180 degrees) between angles. Crucial for smooth, short turret rotation sweeps.";
-            case "variable" -> isUa 
+            case "variable" -> isUa
                 ? "Зчитує значення глобальної змінної за її назвою. Дозволяє передавати дані між різними комп'ютерними програмами."
                 : "Reads the value of a global variable by name. Enables sharing states and telemetry between different computers.";
-            case "set_variable" -> isUa 
+            case "set_variable" -> isUa
                 ? "Записує значення у глобальну змінну. Використовується для запам'ятовування станів, накопичення лічильників та збереження цілей."
                 : "Writes a value to a global variable. Used to store states, increment counters, or remember target coordinates.";
-            case "bool_viewer" -> isUa 
+            case "get_list" -> isUa
+                ? "Зчитує значення зі списку (JSON-карти) за вказаним ключем."
+                : "Reads a value from a list (JSON map) by key.";
+            case "set_list" -> isUa
+                ? "Записує пару ключ-значення у список (JSON-карту) при надходженні сигналу події."
+                : "Writes a key-value pair to a list (JSON map) on an event signal.";
+            case "custom" -> isUa
+                ? "Вузол з формулами користувача. Обчислює вирази за JSON-схемою."
+                : "A custom node evaluating custom math formulas from a JSON schema.";
+            case "bool_viewer" -> isUa
                 ? "Відображає логічний стан порту у вигляді кольорового світлодіода. Допомагає візуально відлагоджувати логіку роботи."
                 : "Displays boolean port status as a colored indicator light. Helpful for debugging logical flows in real-time.";
-            case "number_viewer" -> isUa 
+            case "number_viewer" -> isUa
                 ? "Відображає числове значення порту на панелі ноди. Використовується для моніторингу сенсорів та обчислень в реальному часі."
                 : "Displays the numeric port value directly on the node. Used to monitor coordinates, speeds, or calculations.";
-            case "text_viewer" -> isUa 
+            case "text_viewer" -> isUa
                 ? "Відображає текстовий рядок порту. Зручно для швидкої перевірки каналів, імен змінних або вихідних повідомлень."
                 : "Displays text port value. Convenient for verifying channel names, active variables, or output message content.";
-            case "text_split" -> isUa 
+            case "text_split" -> isUa
                 ? "Розділяє вхідний текст за обраним символом та видає шматок під вказаним індексом. Декодує складні пакети даних."
                 : "Splits text by separator.";
-            case "text_join" -> isUa 
+            case "text_join" -> isUa
                 ? "Об'єднує два тексти в один. Дозволяє динамічно збирати інформаційні рядки, наприклад: 'Висота: ' + число."
                 : "Joins two text strings.";
-            case "text_speak" -> isUa 
+            case "text_speak" -> isUa
                 ? "Створює TTS (Text-to-Speech) голосовий потік з тексту. Дозволяє комп'ютеру озвучувати тривоги та інструкції."
                 : "Generates a TTS (Text-to-Speech) voice stream from text. Allows the computer to speak alarms or instructions in-world.";
-            case "sound_play" -> isUa 
+            case "sound_play" -> isUa
                 ? "Завантажує зовнішній аудіопотік з MP3 URL-посилання. Дозволяє транслювати сирени, радіо або звукові ефекти."
                 : "Loads an external audio stream from an MP3 URL. Allows broadcasting sirens, music streams, or voice warnings.";
-            case "microphone" -> isUa 
+            case "microphone" -> isUa
                 ? "Зчитує голосове мовлення з мікрофонів гравців навколо комп'ютера. Дозволяє створювати системи зв'язку та рації."
                 : "Captures in-game voice chat from players near the microphone block. Used to build intercoms or radio systems.";
-            case "audio_play" -> isUa 
+            case "audio_play" -> isUa
                 ? "Керує підключеним модулем Audio Play для трансляції аудіопотоку у світ. Підтримує голос гравців, TTS та інтернет-радіо."
                 : "Controls the linked Audio Play block, playing the audio stream. Supports player voice, TTS streams, and MP3 links.";
-            case "link_input" -> isUa 
+            case "link_input" -> isUa
                 ? "Отримує бездротовий сигнал червоного каменю від мережі Create Redstone Link. Створює віддалені вимикачі."
                 : "Receives wireless signals from the Create Redstone Link network. Enables wireless remote controller logic.";
-            case "link_output" -> isUa 
+            case "link_output" -> isUa
                 ? "Надсилає бездротовий сигнал у мережу Create Redstone Link. Дозволяє комп'ютеру дистанційно активувати механізми."
                 : "Sends wireless signals to the Create Redstone Link network. Allows the computer to trigger remote machines.";
-            case "antenna_output" -> isUa 
+            case "antenna_output" -> isUa
                 ? "Надсилає структуровані пакети даних через підключену антену на вказаний радіоканал. Основа бездротових радарів."
                 : "Transmits structured data packets on a radio channel via the linked Antenna module. Critical for wireless coordinates transmission.";
-            case "redstone_output" -> isUa 
+            case "redstone_output" -> isUa
                 ? "Подає аналоговий сигнал червоного каменю (0-15) на фізичні порти комп'ютера. Використовується для плавного керування двигунами."
                 : "Outputs analog redstone power (0-15) to the computer's ports. Used to control speed levels or signal indicator lamps.";
-            case "gyroscope" -> isUa 
+            case "gyroscope" -> isUa
                 ? "Вимірює поточні кути нахилу (Pitch, Yaw, Roll) летючого корабля чи машини. Необхідно для систем автопілоту та автостабілізації."
                 : "Measures current rotation angles (Pitch, Yaw, Roll) of a moving ship or carriage. Needed for stabilization flight systems.";
-            case "gyroscope_position" -> isUa 
+            case "gyroscope_position" -> isUa
                 ? "Вимірює поточні координати XYZ рухомої платформи. Потрібно для навігації та автоматичного повернення транспортів додому."
                 : "Reads the current XYZ coordinates of a moving platform. Used for vehicle navigation and automated autopilot pathfinding.";
-            case "active_target" -> isUa 
+            case "active_target" -> isUa
                 ? "Зчитує координати цілі, захопленої радаром Create Radars. Використовується для автоматичного наведення зброї."
                 : "Reads target coordinate tracking from a Create Radar. Critical for automated defense systems and target tracking.";
-            case "jammer" -> isUa 
+            case "custom_target" -> isUa
+                ? "Дозволяє задати власну ціль для радара за координатами."
+                : "Allows setting a custom target for the radar by coordinates.";
+            case "detected_objects" -> isUa
+                ? "Зчитує координати цілей за індексом та загальну кількість виявлених об'єктів з радара Create Radar."
+                : "Reads coordinates of targets by index and the total number of detected objects from a Create Radar.";
+            case "jammer" -> isUa
                 ? "Керує підключеним модулем Jammer для придушення радіочастот навколо. Захищає бази від ворожого сканування."
                 : "Controls the linked Jammer block. Jams and disables nearby wireless signals to protect against remote tracking.";
-            case "screen" -> isUa 
+            case "screen" -> isUa
                 ? "Передає графічний інтерфейс та об'єкти на підключений прозорий екран Transparent Screen."
                 : "Sends graphic layouts and camera video feeds to the linked Transparent Screen block.";
-            case "gizmos_2d" -> isUa 
+            case "gizmos_2d" -> isUa
                 ? "Створює групу плоских 2D фігур (кола, текст, лінії) у піксельних координатах. Малює приціли, інтерфейси та карти."
                 : "Creates flat 2D overlays (shapes, text, lines) using screen coordinates. Used to design target reticles or maps.";
-            case "gizmos_3d" -> isUa 
+            case "gizmos_3d" -> isUa
                 ? "Створює просторові 3D маркери та рамки навколо точок у світі. Позначає цілі, межі чанків та небезпечні зони."
                 : "Creates 3D bounding boxes and line markers anchored in the world. Displays target markers or waypoint lines.";
-            case "gizmos_combine" -> isUa 
+            case "gizmos_combine" -> isUa
                 ? "Об'єднує декілька графічних груп (наприклад, 2D приціл та 3D маркери) в один пакет для виведення на екран."
                 : "Combines multiple graphics groups (e.g. 2D overlay and 3D coordinate boxes) into a single packet to display.";
-            case "gizmos_view" -> isUa 
+            case "gizmos_view" -> isUa
                 ? "Створює віджет трансляції зображення з камери Vista. Дозволяє виводити камери спостереження на монітори бази."
                 : "Creates a Camera Feed element using Vista camera streams to display live surveillance feeds on base monitors.";
-            case "helmet_pos" -> isUa 
+            case "helmet_pos" -> isUa
                 ? "Визначає координати XYZ гравця, який носить шолом. Використовується для фокусування систем захисту на гравцеві."
                 : "Reads current coordinates of the player wearing the linked Pilot Helmet. Used to follow or protect the player.";
-            case "helmet_rotation" -> isUa 
+            case "helmet_rotation" -> isUa
                 ? "Зчитує напрямок погляду гравця в шоломі (Yaw, Pitch). Дозволяє повертати камери та турелі слідом за головою пілота."
                 : "Measures view angles of the player wearing the helmet. Perfect for head-tracking cameras and follow-mouse turrets.";
-            case "helmet_screen" -> isUa 
+            case "helmet_screen" -> isUa
                 ? "Надсилає графічний інтерфейс прямо на HUD-дисплей шолома пілота. Незамінно для окулярів нічного бачення та радарів шолома."
                 : "Transmits HUD layout graphics and video feeds directly to the player's Pilot Helmet screen overlay.";
-            case "color_rgb" -> isUa 
+            case "color_rgb" -> isUa
                 ? "Створює код кольору із значень Red, Green, Blue (0-255). Використовується для динамічного перефарбування прицілів."
                 : "Generates a color code from Red, Green, and Blue values (0-255). Useful for custom GUI color themes and alert indicators.";
-            case "shape" -> isUa 
+            case "shape" -> isUa
                 ? "Створює опис графічного примітиву (прямокутник, коло, лінія, текст) для малювання у 2D гізмосах."
                 : "Defines a visual primitive (rect, circle, line, text) with settings. Passed to 2D gizmos node to render.";
-            case "camera" -> isUa 
+            case "camera" -> isUa
                 ? "Керує камерою Vista (Zoom, Pitch, Yaw). Використовується для систем віддаленого відеоспостереження та стеження за цілями."
                 : "Controls Vista Camera properties (Zoom, Pitch, Yaw). Used for remote surveillance, zoom sweeps, and follow targets.";
-            case "cannon_rot" -> isUa 
+            case "camera_screen" -> isUa
+                ? "Виводить потік з камери разом з 3D гізмосами на Transparent Screen та керує кутами нахилу й масштабуванням камери."
+                : "Outputs live camera stream overlaid with 3D gizmos to Transparent Screen, and controls camera angles and zoom.";
+            case "servo_control" -> isUa
+                ? "Задає кут повороту (-180..180 градусів) для підключеного сервомотора Servo Motor."
+                : "Commands the target rotation angle (-180 to 180 degrees) for the linked Servo Motor module.";
+            case "servo_angle" -> isUa
+                ? "Зчитує поточний реальний кут повороту підключеного сервомотора Servo Motor."
+                : "Reads the current real-time rotation angle of the linked Servo Motor module.";
+            case "cannon_rot" -> isUa
                 ? "Визначає кути наведення та команду пострілу для Cannon Mount з Create Big Cannons. Автоматизує артилерію."
                 : "Calculates targeting angles and firing commands for Create Big Cannons Mount blocks. Used to build auto-turrets.";
-            case "display_board" -> isUa 
+            case "display_board" -> isUa
                 ? "Виводить текст на інформаційне табло Create Display Board. Використовується для вокзальних табло та дисплеїв стану реакторів."
                 : "Sends text to a Create Display Board. Perfect for train station arrival boards or reactor status displays.";
-            case "display_link" -> isUa 
+            case "display_link" -> isUa
                 ? "Дозволяє комп'ютеру бути джерелом для Create Display Link, передаючи довільні дані на табло."
                 : "Acts as a source for Create Display Links, sending custom values to reader boards.";
-            case "pos_to_rot" -> isUa 
+            case "pos_to_rot" -> isUa
                 ? "Перетворює різницю координат XYZ у кути Pitch та Yaw. Потрібно для обчислення наведення турелей на координати цілі."
                 : "Converts coordinate difference vector into Pitch and Yaw angles. Essential for pointing turrets at coordinates.";
-            case "rot_to_pos" -> isUa 
+            case "rot_to_pos" -> isUa
                 ? "Конвертує кути Pitch та Yaw у тривимірний напрямний вектор. Дозволяє розраховувати промені та траєкторії польоту."
                 : "Converts Pitch and Yaw angles into a 3D direction vector. Useful for raycasting and forward trajectory paths.";
-            case "comment" -> isUa 
+            case "comment" -> isUa
                 ? "Блок текстової замітки на робочій області. Допомагає структурувати та коментувати складні логічні схеми нод."
                 : "A text note block on the workspace canvas. Used to comment and organize large, complex node networks.";
             default -> {
@@ -3853,6 +4869,9 @@ public class NodeEditorScreen extends Screen {
             case "bool_viewer", "number_viewer", "text_viewer" -> isUa ? "Візуалізатор відображає отримані дані в режимі реального часу." : "The viewer displays the received telemetry data in real-time.";
             case "variable" -> isUa ? "Зчитує поточний стан з комірки глобальної пам'яті комп'ютера." : "Reads the current state from the computer's global memory cell.";
             case "set_variable" -> isUa ? "Записує вхідні дані в глобальну пам'ять під вказаним ключем." : "Overwrites the computer's global memory cell with the new value.";
+            case "get_list" -> isUa ? "Зчитує елемент із JSON-структури за ключем." : "Reads an element from a JSON structure by key.";
+            case "set_list" -> isUa ? "Оновлює або додає пару ключ-значення у JSON-структуру за подією." : "Updates or adds a key-value pair in a JSON structure on event.";
+            case "custom" -> isUa ? "Обчислює кастомні математичні формули згідно з JSON-схемою." : "Evaluates custom mathematical formulas according to a JSON schema.";
             case "sound_play" -> isUa ? "Завантажує та транслює потокове аудіо через вказане посилання." : "Decodes and streams direct audio from the specified web link.";
             case "text_speak" -> isUa ? "Перетворює отриманий текст на потік голосового мовлення (TTS)." : "Synthesizes the received text into a voice stream (TTS).";
             case "microphone" -> isUa ? "Записує голос гравців навколо та надсилає його в мережу." : "Captures vocal input from nearby players to route into the stream.";
@@ -3866,8 +4885,13 @@ public class NodeEditorScreen extends Screen {
             case "gyroscope" -> isUa ? "Гіроскоп фіксує кути обертання та крену рухомої конструкції." : "The gyroscope measures rotation angles of the moving carriage.";
             case "gyroscope_position" -> isUa ? "Сенсор відстежує точні координати конструкції на карті." : "The coordinate sensor tracks the platform's position in the world.";
             case "active_target" -> isUa ? "Радар видає координати супротивника або цілі в радіусі сканування." : "The targeting computer outputs the tracked enemy target's position.";
+            case "custom_target" -> isUa ? "Задає координати та назву власної цілі для радарної системи." : "Sets coordinates and name for the custom target in the radar system.";
+            case "detected_objects" -> isUa ? "Радар видає інформацію про всі виявлені об'єкти за вказаним індексом." : "The targeting computer outputs the information of all detected objects at the specified index.";
             case "signal" -> isUa ? "Приймач зчитує силу та корисне навантаження радіосигналу." : "The receiver measures radio channel signal strength and data content.";
             case "camera" -> isUa ? "Змінює кути нахилу камери та масштабує об'єктив." : "Updates view finder rotation angles and adjusts camera zoom levels.";
+            case "camera_screen" -> isUa ? "Виводить зображення камери на екран і коригує напрямок об'єктива." : "Outputs the camera feed to the screen and adjusts view finder direction.";
+            case "servo_control" -> isUa ? "Надсилає команду цільового кута на сервомотор." : "Sends the target angle command to the servo motor.";
+            case "servo_angle" -> isUa ? "Зчитує поточний фактичний кут повороту сервомотора." : "Reads the current actual rotation angle of the servo motor.";
             case "cannon_rot" -> isUa ? "Направляє гармату на ціль та активує спусковий механізм." : "Positions the cannon mount at the target and fires a shot.";
             case "display_board" -> isUa ? "Виводить сформований текст на інформаційне табло." : "Displays the text layout on the mechanical information board.";
             case "screen", "helmet_screen" -> isUa ? "Формує фінальне зображення та відправляє його на дисплей." : "Compiles the graphics layout and sends it to the visual display.";
@@ -3882,16 +4906,15 @@ public class NodeEditorScreen extends Screen {
         };
     }
 
-    // ─── Ponder Storyboard Initialization ──────────────────────────────────────
     private void initPonderChapters(String type, AlgoNode openNode) {
         currentPonderChapters.clear();
-        
+
         String lang = net.minecraft.client.Minecraft.getInstance().getLanguageManager().getSelected();
         boolean isUa = lang.toLowerCase().contains("uk_") || lang.toLowerCase().contains("ukr");
-        
+
         AlgoNode dummy = AlgoNode.createNode(type, "main", 0, 0);
         if (dummy == null) return;
-        
+
         if (openNode != null) {
             if (dummy instanceof com.radiologistics.create.node.nodes.TextNode tn && openNode instanceof com.radiologistics.create.node.nodes.TextNode otn) {
                 tn.setText(otn.getText());
@@ -3903,6 +4926,12 @@ public class NodeEditorScreen extends Screen {
                 vn.setVariableName(ovn.getVariableName());
             } else if (dummy instanceof com.radiologistics.create.node.nodes.SetVariableNode svn && openNode instanceof com.radiologistics.create.node.nodes.SetVariableNode osvn) {
                 svn.setVariableName(osvn.getVariableName());
+            } else if (dummy instanceof com.radiologistics.create.node.nodes.GetListNode gl && openNode instanceof com.radiologistics.create.node.nodes.GetListNode ogl) {
+                gl.setVariableName(ogl.getVariableName());
+            } else if (dummy instanceof com.radiologistics.create.node.nodes.SetListNode sl && openNode instanceof com.radiologistics.create.node.nodes.SetListNode osl) {
+                sl.setVariableName(osl.getVariableName());
+            } else if (dummy instanceof com.radiologistics.create.node.nodes.CustomNode cn && openNode instanceof com.radiologistics.create.node.nodes.CustomNode ocn) {
+                cn.setSchema(new ArrayList<>(ocn.getInputsList()), new ArrayList<>(ocn.getOutputsList()), ocn.getCodeScript());
             }
         } else {
             if (dummy instanceof com.radiologistics.create.node.nodes.TextNode tn) tn.setText("Hello");
@@ -3910,32 +4939,32 @@ public class NodeEditorScreen extends Screen {
             else if (dummy instanceof com.radiologistics.create.node.nodes.BoolNode bn) bn.setValue(false);
             else if (dummy instanceof com.radiologistics.create.node.nodes.VariableNode vn) vn.setVariableName("speed");
             else if (dummy instanceof com.radiologistics.create.node.nodes.SetVariableNode svn) svn.setVariableName("speed");
+            else if (dummy instanceof com.radiologistics.create.node.nodes.GetListNode gl) gl.setVariableName("mylist");
+            else if (dummy instanceof com.radiologistics.create.node.nodes.SetListNode sl) sl.setVariableName("mylist");
+            else if (dummy instanceof com.radiologistics.create.node.nodes.CustomNode cn) cn.setSchema(List.of("x", "y"), List.of("sum", "diff"), "double temp = x * y;\nsum = temp;\ndiff = x - y;");
         }
-        
+
         int nh = nodeHeight(dummy);
         int mainX = 185;
         int mainY = 95 - nh/2;
-        
+
         List<String> ins = dummy.getInputPorts();
         List<String> outs = dummy.getOutputPorts();
-        
+
         String title = net.minecraft.network.chat.Component.translatable("radiologistics.node_ponder." + type + ".title").getString();
         if (title.startsWith("radiologistics.")) title = nodeTitle(type);
-        
+
         String compat = net.minecraft.network.chat.Component.translatable("radiologistics.node_ponder." + type + ".compat").getString();
         if (compat.startsWith("radiologistics.")) compat = isUa ? "Будь-який сумісний блок" : "Any compatible node";
 
-        // Define the 4 sections of our timeline
         PonderChapter ch1 = new PonderChapter(isUa ? "Огляд" : "Overview", "");
         PonderChapter ch2 = new PonderChapter(isUa ? "Підключення" : "Connections", "");
         PonderChapter ch3 = new PonderChapter(isUa ? "Робота блоку" : "In Action", "");
         PonderChapter ch4 = new PonderChapter(isUa ? "Сумісність" : "Applications", "");
-        
-        // Add nodes to master chapter data structure (ch1)
+
         PonderNode mNode = new PonderNode(type, "main", getValLabel(dummy), mainX, mainY);
         ch1.nodes.add(mNode);
-        
-        // Build inputs (left: x = 12)
+
         int inSpacing = ins.size() > 3 ? 42 : 44;
         for (int i = 0; i < ins.size(); i++) {
             String portName = ins.get(i);
@@ -3945,8 +4974,7 @@ public class NodeEditorScreen extends Screen {
             ch1.nodes.add(inNode);
             ch1.wires.add(new PonderWire("in_" + i, "value", "main", portName, getPortColor(dummy, portName, false), true));
         }
-        
-        // Build outputs (right: x = 358)
+
         int outSpacing = outs.size() > 3 ? 42 : 44;
         for (int j = 0; j < outs.size(); j++) {
             String portName = outs.get(j);
@@ -3956,13 +4984,11 @@ public class NodeEditorScreen extends Screen {
             ch1.nodes.add(outNode);
             ch1.wires.add(new PonderWire("main", portName, "out_" + j, "value", getPortColor(dummy, portName, true), true));
         }
-        
+
         String conciseDesc = getConciseDescription(type, isUa);
-        
-        // Section 1 bubbles (0.0 to 0.25)
+
         ch1.bubbles.add(new PonderBubble(conciseDesc, "main", 0.0, 0.25));
-        
-        // Section 2 bubbles (0.25 to 0.50)
+
         if (!ins.isEmpty()) {
             ch1.bubbles.add(new PonderBubble(
                 isUa ? "Вхідні порти (мідне кільце)." : "Input ports (copper collar).",
@@ -3978,8 +5004,7 @@ public class NodeEditorScreen extends Screen {
                 isUa ? "Блок не має вхідних чи вихідних портів." : "The block has no inputs or outputs.",
                 "main", 0.25, 0.50));
         }
-        
-        // Section 3 bubbles (0.50 to 0.75)
+
         if (!ins.isEmpty()) {
             ch1.bubbles.add(new PonderBubble(
                 isUa ? "Вхідні значення змінюються." : "Input values update.",
@@ -3993,12 +5018,11 @@ public class NodeEditorScreen extends Screen {
                 isUa ? "Результат передається далі." : "The result is transmitted out.",
                 "out_0", 0.66, 0.75));
         }
-        
-        // Section 4 bubbles (0.75 to 1.00)
+
         ch1.bubbles.add(new PonderBubble(
             (isUa ? "Сумісність: " : "Compatible with: ") + compat,
             "main", 0.75, 1.0));
-            
+
         currentPonderChapters.add(ch1);
         currentPonderChapters.add(ch2);
         currentPonderChapters.add(ch3);
@@ -4039,8 +5063,6 @@ public class NodeEditorScreen extends Screen {
         return "number_viewer";
     }
 
-    // ─── Ponder Animation Logic ────────────────────────────────────────────────
-    // ─── Ponder Animation Logic ────────────────────────────────────────────────
     private void animateChapterNodes(PonderChapter masterChapter, float t) {
         PonderNode main = null;
         for (PonderNode pn : masterChapter.nodes) {
@@ -4050,13 +5072,12 @@ public class NodeEditorScreen extends Screen {
             }
         }
         if (main == null) return;
-        
+
         main.active = false;
         for (PonderNode pn : masterChapter.nodes) {
             if (pn.id.startsWith("out_")) pn.active = false;
         }
 
-        // Recreate the main AlgoNode to get its input ports and evaluate values
         AlgoNode mainAlgoNode = AlgoNode.createNode(main.type, "main", 0, 0);
         if (mainAlgoNode != null && ponderOpenNode != null) {
             if (mainAlgoNode instanceof com.radiologistics.create.node.nodes.TextNode tn && ponderOpenNode instanceof com.radiologistics.create.node.nodes.TextNode otn) {
@@ -4179,7 +5200,7 @@ public class NodeEditorScreen extends Screen {
                 }
             }
         } else {
-            // Applications phase
+
             main.active = false;
             for (PonderNode pn : masterChapter.nodes) {
                 if (pn.id.startsWith("in_")) {
@@ -4267,12 +5288,11 @@ public class NodeEditorScreen extends Screen {
         return String.valueOf(val);
     }
 
-    // ─── Ponder Node Renderer ──────────────────────────────────────────────────
     private void renderPonderNode(GuiGraphics g, PonderNode pn, float parentAlpha, float zLevel) {
         if (pn.alpha <= 0.0f) return;
         AlgoNode dummy = AlgoNode.createNode(pn.type, pn.id, pn.x, pn.y);
         if (dummy == null) return;
-        
+
         if (dummy instanceof com.radiologistics.create.node.nodes.TextNode tn) {
             String label = pn.valueLabel;
             if (label.startsWith("\"") && label.endsWith("\"") && label.length() >= 2) {
@@ -4308,33 +5328,27 @@ public class NodeEditorScreen extends Screen {
                 tvn.evaluate("value", Map.of("value", label), null);
             }
         }
-        
+
         renderingPonderScene = true;
-        
+
         boolean oldSelected = selectedNodeIds.contains(dummy.getId());
         if (pn.active) {
             selectedNodeIds.add(dummy.getId());
         }
-        
-        // Render node at FULL opacity so fills completely block any text drawn by other nodes.
-        // This fixes text bleed-through: semi-transparent fills cannot cover other nodes' text.
+
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
-        
+
         renderNode(g, dummy, zLevel);
-        
-        // Apply fade-in effect by overlaying a semi-transparent dark rect over the node.
-        // This gives the same visual appearance as fading the node itself, but the
-        // underlying fills were drawn at full opacity so no text bleed-through occurs.
+
         float effectiveAlpha = pn.alpha * parentAlpha;
         if (effectiveAlpha < 0.99f) {
             g.flush();
-            int fadeAlpha = (int)((1.0f - effectiveAlpha) * 208); // max 0xD0 to match backdrop
+            int fadeAlpha = (int)((1.0f - effectiveAlpha) * 208);
             if (fadeAlpha > 0) {
                 int nh2 = nodeHeight(dummy);
-                // The fade rect is drawn in the SAME coordinate space as renderNode used
-                // (pose translated to pn.x, pn.y — we re-translate here)
+
                 g.pose().pushPose();
                 g.pose().translate(pn.x, pn.y, zLevel + 0.5f);
                 g.fill(0, 0, NODE_W, nh2, (fadeAlpha << 24) | 0x101114);
@@ -4342,29 +5356,28 @@ public class NodeEditorScreen extends Screen {
                 g.pose().popPose();
             }
         }
-        
+
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
-        
+
         if (pn.active && !oldSelected) {
             selectedNodeIds.remove(dummy.getId());
         }
-        
+
         renderingPonderScene = false;
     }
 
-    // ─── Ponder Wires & Signal Flow Renderer ──────────────────────────────────
     private void renderPonderWires(GuiGraphics g, PonderChapter masterChapter, float t, float t_local, double growPct, float alpha, float zLevel) {
         currentPonderWires = masterChapter.wires;
         renderingPonderScene = true;
-        
+
         g.pose().pushPose();
         g.pose().translate(0, 0, zLevel);
-        
+
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
-        
+
         for (PonderWire w : masterChapter.wires) {
             PonderNode from = null, to = null;
             for (PonderNode pn : masterChapter.nodes) {
@@ -4372,26 +5385,26 @@ public class NodeEditorScreen extends Screen {
                 if (pn.id.equals(w.toNode)) to = pn;
             }
             if (from == null || to == null) continue;
-            
+
             AlgoNode dummyFrom = AlgoNode.createNode(from.type, from.id, from.x, from.y);
             AlgoNode dummyTo = AlgoNode.createNode(to.type, to.id, to.x, to.y);
             if (dummyFrom == null || dummyTo == null) continue;
-            
+
             double[] start = portCanvasPos(dummyFrom, w.fromPort, true);
             double[] end = portCanvasPos(dummyTo, w.toPort, false);
-            
+
             boolean isRs = w.color == 0xFFCCCCCC || dummyFrom instanceof com.radiologistics.create.node.nodes.SignalNode || dummyTo instanceof com.radiologistics.create.node.nodes.SignalNode;
             if (isRs) {
                 drawCreatePipeGrow(g, start[0], start[1], end[0], end[1], false, growPct);
             } else {
                 drawCreatePipeGrow(g, start[0], start[1], end[0], end[1], w.pulse, growPct);
             }
-            
+
             if (w.pulse && (t >= 0.50f && t < 0.75f) && growPct >= 1.0) {
                 drawWireParticle(g, start[0], start[1], end[0], end[1], t_local, w.color);
             }
         }
-        
+
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
         g.pose().popPose();
@@ -4401,19 +5414,17 @@ public class NodeEditorScreen extends Screen {
     private void renderPonderOverlay(GuiGraphics g, int mx, int my) {
         if (currentPonderChapters.isEmpty()) return;
         PonderChapter masterChapter = currentPonderChapters.get(0);
-        
-        // Background dimmed backdrop fade-in over 300ms
+
         double elapsedFromOpen = System.currentTimeMillis() - ponderOpenTime;
         double bgAlphaPct = Math.min(1.0, elapsedFromOpen / 300.0);
         int bgAlpha = (int)(0xD0 * bgAlphaPct);
         g.fill(0, 0, this.width, this.height, (bgAlpha << 24) | 0x101114);
-        
+
         float overlayAlpha = (float)bgAlphaPct;
-        
+
         int pw = 500;
         int vh = 190;
-        
-        // Calculate scaling if screen width is narrow
+
         float scale = 1.0f;
         int minMargin = 20;
         if (this.width < pw + minMargin * 2) {
@@ -4424,29 +5435,28 @@ public class NodeEditorScreen extends Screen {
         int px = (this.width - scaledPw) / 2;
         int py = (this.height - (scaledVh + (int)(35 * scale))) / 2;
         if (py < 16) py = 16;
-        
+
         int localMx = (int)((mx - px) / scale);
         int localMy = (int)((my - py) / scale);
-        
+
         String headerTitle = net.minecraft.network.chat.Component.translatable("radiologistics.node_ponder." + ponderOpenType + ".title").getString();
         if (headerTitle.startsWith("radiologistics.")) headerTitle = nodeTitle(ponderOpenType);
-        
+
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, overlayAlpha);
-        
+
         g.pose().pushPose();
         g.pose().translate(px, py, 0);
         g.pose().scale(scale, scale, 1.0f);
-        
+
         g.drawString(this.font, "📖 Ponder: " + headerTitle, 2, -12, 0xFFFFD700);
-        
+
         boolean hoverClose = localMx >= pw - 15 && localMx < pw && localMy >= -15 && localMy < 0;
         g.drawString(this.font, "✕", pw - 12, -12, hoverClose ? 0xFFFF5555 : 0xFFACAFB0);
-        
+
         drawInsetPanel(g, 0, 0, pw, vh, THEME_ANDESITE);
-        
-        // Inner grid background
+
         g.fill(1, 1, pw - 1, vh - 1, 0xFF111214);
         for (int gx = 15; gx < pw - 1; gx += 15) {
             g.fill(gx, 1, gx + 1, vh - 1, 0xFF1C1D20);
@@ -4454,18 +5464,16 @@ public class NodeEditorScreen extends Screen {
         for (int gy = 15; gy < vh - 1; gy += 15) {
             g.fill(1, gy, pw - 1, gy + 1, 0xFF1C1D20);
         }
-        
+
         float t = (float)(ponderTimelineElapsedTime / TOTAL_TIMELINE_DURATION_MS);
         t = Math.max(0.0f, Math.min(1.0f, t));
         double t_ms = ponderTimelineElapsedTime;
-        
-        // Determine layout dimensions
+
         AlgoNode mainDummy = AlgoNode.createNode(ponderOpenType, "main", 0, 0);
         int nh = mainDummy != null ? nodeHeight(mainDummy) : 40;
         int mainX = 185;
         int mainY = 95 - nh/2;
-        
-        // Animating positions: sliding in from side/bottom
+
         int currentMainY = mainY;
         float mainAlpha = 1.0f;
         if (t_ms < 1000.0) {
@@ -4474,7 +5482,7 @@ public class NodeEditorScreen extends Screen {
             currentMainY = (int)(mainY + 40 * (1.0 - ease));
             mainAlpha = (float)progress;
         }
-        
+
         int currentInX = 12;
         int currentOutX = 358;
         float sideAlpha = 1.0f;
@@ -4493,8 +5501,7 @@ public class NodeEditorScreen extends Screen {
             currentOutX = 358;
             sideAlpha = 1.0f;
         }
-        
-        // Apply animated positions and alpha to chapter node objects
+
         for (PonderNode pn : masterChapter.nodes) {
             if (pn.id.equals("main")) {
                 pn.y = currentMainY;
@@ -4507,7 +5514,7 @@ public class NodeEditorScreen extends Screen {
                 pn.alpha = sideAlpha;
             }
         }
-        
+
         double growPct = 1.0;
         if (t_ms < 6000.0) {
             growPct = 0.0;
@@ -4519,24 +5526,24 @@ public class NodeEditorScreen extends Screen {
                 growPct = 1.0 - Math.pow(1.0 - linearPct, 3);
             }
         }
-        
+
         float t_local = 0.0f;
         if (t >= 0.50f && t < 0.75f) {
             t_local = (t - 0.50f) / 0.25f;
         } else if (t >= 0.75f) {
             t_local = 1.0f;
         }
-        
+
         animateChapterNodes(masterChapter, t);
-        
+
         com.mojang.blaze3d.systems.RenderSystem.disableDepthTest();
         g.enableScissor(px, py, px + (int)(pw * scale), py + (int)(vh * scale));
         g.flush();
-        
+
         if (t_ms >= 6000.0) {
             renderPonderWires(g, masterChapter, t, t_local, growPct, overlayAlpha, 5.0f);
         }
-        
+
         for (PonderNode pn : masterChapter.nodes) {
             if (pn.id.equals("main")) continue;
             if (t_ms < 6000.0) continue;
@@ -4546,8 +5553,7 @@ public class NodeEditorScreen extends Screen {
             if (!pn.id.equals("main")) continue;
             renderPonderNode(g, pn, overlayAlpha, 20.0f);
         }
-        
-        // Resolve Word Bubbles overlap layout dynamically
+
         class BubbleLayout {
             final PonderBubble bubble;
             int bx, by, bw, bh;
@@ -4559,7 +5565,7 @@ public class NodeEditorScreen extends Screen {
                 this.bh = bh;
             }
         }
-        
+
         List<BubbleLayout> activeLayouts = new ArrayList<>();
         for (PonderBubble b : masterChapter.bubbles) {
             if (t >= b.startPct && t <= b.endPct) {
@@ -4587,12 +5593,12 @@ public class NodeEditorScreen extends Screen {
                     }
                 }
                 if (tx == -1 || ty == -1) continue;
-                
+
                 int maxW = 125;
                 List<String> lines = splitComment(b.text, maxW - 12);
                 int bwVal = maxW;
                 int bhVal = lines.size() * 10 + 10;
-                
+
                 int bxVal;
                 if (tx > 250) {
                     bxVal = tx - bwVal - 50;
@@ -4600,14 +5606,14 @@ public class NodeEditorScreen extends Screen {
                     bxVal = tx + 50;
                 }
                 int byVal = ty - bhVal / 2;
-                
+
                 bxVal = Math.max(10, Math.min(500 - bwVal - 10, bxVal));
                 byVal = Math.max(10, Math.min(190 - bhVal - 10, byVal));
-                
+
                 activeLayouts.add(new BubbleLayout(b, bxVal, byVal, bwVal, bhVal));
             }
         }
-        
+
         activeLayouts.sort(Comparator.comparingInt(l -> l.by));
         for (int i = 0; i < activeLayouts.size(); i++) {
             BubbleLayout current = activeLayouts.get(i);
@@ -4626,7 +5632,7 @@ public class NodeEditorScreen extends Screen {
                 }
                 attempts++;
             } while (hasOverlap && attempts < 10);
-            
+
             if (current.by + current.bh > 180) {
                 current.by = 180 - current.bh;
                 for (int j = i - 1; j >= 0; j--) {
@@ -4640,61 +5646,56 @@ public class NodeEditorScreen extends Screen {
                 if (current.by < 10) current.by = 10;
             }
         }
-        
+
         for (BubbleLayout layout : activeLayouts) {
             renderPonderBubble(g, masterChapter, layout.bubble, layout.bx, layout.by, t, overlayAlpha);
         }
-        
+
         g.flush();
         g.disableScissor();
         com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
-        
-        // Draw timeline controls relative to local space
+
         int cy = vh + 6;
-        
-        // Row 1: Full width progress bar
+
         int sx = 8;
         int sw = 484;
         g.fill(sx, cy + 4, sx + sw, cy + 6, 0xFF141312);
-        
-        // Chapter divider dots on timeline
+
         g.fill(sx + sw/4 - 1, cy + 3, sx + sw/4 + 1, cy + 7, 0xFF5F5A57);
         g.fill(sx + sw/2 - 1, cy + 3, sx + sw/2 + 1, cy + 7, 0xFF5F5A57);
         g.fill(sx + 3*sw/4 - 1, cy + 3, sx + 3*sw/4 + 1, cy + 7, 0xFF5F5A57);
-        
+
         int progressW = (int) (sw * t);
         g.fill(sx, cy + 4, sx + progressW, cy + 6, 0xFFC8963E);
-        
+
         int kx = sx + progressW;
         g.fill(kx - 2, cy + 2, kx + 2, cy + 8, 0xFFFFD700);
-        
-        // Row 2: Play/Pause, Rewind, and Scene switcher below timeline
+
         int cy2 = cy + 13;
-        
+
         boolean hoverPlay = localMx >= 8 && localMx < 20 && localMy >= cy2 && localMy < cy2 + 12;
         String playIcon = ponderPaused ? "▶" : "‖";
         g.drawString(this.font, playIcon, 8, cy2 + 1, hoverPlay ? 0xFFFFFFFF : 0xFFACAFB0);
-        
+
         boolean hoverRewind = localMx >= 24 && localMx < 36 && localMy >= cy2 && localMy < cy2 + 12;
         g.drawString(this.font, "⏪", 24, cy2 + 1, hoverRewind ? 0xFFFFFFFF : 0xFFACAFB0);
-        
+
         int activeSec = Math.max(0, Math.min(3, (int)(t * 4)));
         PonderChapter currentSec = currentPonderChapters.get(activeSec);
         String chLabel = (activeSec + 1) + "/4: " + currentSec.title;
         int lblW = this.font.width(chLabel);
-        
-        // Centered switcher
+
         int switcherW = lblW + 34;
         int switcherX = (pw - switcherW) / 2;
-        
+
         boolean hoverPrev = localMx >= switcherX && localMx < switcherX + 12 && localMy >= cy2 && localMy < cy2 + 12;
         g.drawString(this.font, "◀", switcherX + 2, cy2 + 1, hoverPrev ? 0xFFFFFFFF : 0xFFACAFB0);
-        
+
         g.drawString(this.font, chLabel, switcherX + 16, cy2 + 1, 0xFFE9C583);
-        
+
         boolean hoverNext = localMx >= switcherX + 16 + lblW + 6 && localMx < switcherX + 16 + lblW + 18 && localMy >= cy2 && localMy < cy2 + 12;
         g.drawString(this.font, "▶", switcherX + 16 + lblW + 6, cy2 + 1, hoverNext ? 0xFFFFFFFF : 0xFFACAFB0);
-        
+
         g.pose().popPose();
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -4704,7 +5705,7 @@ public class NodeEditorScreen extends Screen {
         boolean isInput = x2 > 100 && x2 < 260;
         float progress = 0.0f;
         boolean draw = false;
-        
+
         if (isInput) {
             if (t_local <= 0.5f) {
                 progress = t_local / 0.5f;
@@ -4716,15 +5717,15 @@ public class NodeEditorScreen extends Screen {
                 draw = true;
             }
         }
-        
+
         if (draw) {
             double dx = Math.abs(x2 - x1), co = Math.max(30, dx / 2);
             double cx1 = x1 + co, cy1 = y1, cx2 = x2 - co, cy2 = y2;
-            
+
             double mt = 1.0 - progress;
             double px = mt*mt*mt*x1 + 3*mt*mt*progress*cx1 + 3*mt*progress*progress*cx2 + progress*progress*progress*x2;
             double py = mt*mt*mt*y1 + 3*mt*mt*progress*cy1 + 3*mt*progress*progress*cy2 + progress*progress*progress*y2;
-            
+
             g.fill((int)px - 3, (int)py - 3, (int)px + 3, (int)py + 3, color);
             g.fill((int)px - 1, (int)py - 1, (int)px + 1, (int)py + 1, 0xFFFFFFFF);
         }
@@ -4733,7 +5734,7 @@ public class NodeEditorScreen extends Screen {
     private void renderPonderBubble(GuiGraphics g, PonderChapter masterChapter, PonderBubble bubble, int bx, int by, float t, float parentAlpha) {
         int tx = bubble.targetX;
         int ty = bubble.targetY;
-        
+
         if (bubble.targetNodeId != null) {
             PonderNode targetNode = null;
             for (PonderNode pn : masterChapter.nodes) {
@@ -4745,7 +5746,7 @@ public class NodeEditorScreen extends Screen {
             if (targetNode != null) {
                 AlgoNode dummy = AlgoNode.createNode(targetNode.type, targetNode.id, targetNode.x, targetNode.y);
                 int nh = dummy != null ? nodeHeight(dummy) : 40;
-                
+
                 if (bubble.targetPort != null) {
                     double[] pp = portCanvasPos(dummy, bubble.targetPort, bubble.isOutputPort);
                     tx = (int)pp[0];
@@ -4756,30 +5757,30 @@ public class NodeEditorScreen extends Screen {
                 }
             }
         }
-        
+
         if (tx == -1 || ty == -1) return;
-        
+
         int maxW = 125;
         List<String> lines = splitComment(bubble.text, maxW - 12);
         int bw = maxW;
         int bh = lines.size() * 10 + 10;
-        
+
         double bubbleStartPct = bubble.startPct;
         double bubbleStartMs = bubbleStartPct * 24000.0;
         double elapsedBubble = (t * 24000.0) - bubbleStartMs;
-        
+
         double bubbleEndMs = bubble.endPct * 24000.0;
         double remainingMs = bubbleEndMs - (t * 24000.0);
-        
+
         double fadeInProgress = Math.min(1.0, elapsedBubble / 500.0);
         double fadeOutProgress = Math.min(1.0, remainingMs / 300.0);
         float alpha = (float) Math.max(0.0, Math.min(fadeInProgress, fadeOutProgress));
-        
+
         if (alpha <= 0.0f) return;
-        
+
         double slideProgress = Math.min(1.0, elapsedBubble / 500.0);
         double slideEase = 1.0 - Math.pow(1.0 - slideProgress, 3);
-        
+
         int finalBx = bx;
         if (slideEase < 1.0) {
             if (tx > 250) {
@@ -4788,57 +5789,52 @@ public class NodeEditorScreen extends Screen {
                 finalBx = (int)(bx + 20 * (1.0 - slideEase));
             }
         }
-        
+
         int lx = (tx > 205) ? finalBx + bw : finalBx;
-        
+
         g.pose().pushPose();
         g.pose().translate(0, 0, 30.0f);
-        
+
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha * parentAlpha);
-        
-        // Crisp horizontal single-pixel connection line
+
         g.fill(Math.min(lx, tx), ty, Math.max(lx, tx), ty + 1, 0x80C8963E);
-        
-        // Vertical step line to the bubble center Y if shifted
+
         int bubbleCenterY = by + bh / 2;
         if (ty != bubbleCenterY) {
             g.fill(lx, Math.min(ty, bubbleCenterY), lx + 1, Math.max(ty, bubbleCenterY), 0x80C8963E);
         }
-        
-        // Gold locator circle
+
         g.fill(tx - 2, ty - 2, tx + 3, ty + 3, 0xFF141312);
         g.fill(tx - 1, ty - 1, tx + 2, ty + 2, 0xFFFFD700);
         g.fill(tx, ty, tx + 1, ty + 1, 0xFF110F0E);
-        
-        // Bubble box styling
+
         g.fill(finalBx, by, finalBx + bw, by + bh, 0xFF141312);
         g.fill(finalBx + 1, by + 1, finalBx + bw - 1, by + bh - 1, 0xFF2C2D2F);
-        
+
         g.fill(finalBx + 1, by + 1, finalBx + bw - 1, by + 2, 0xFFFFD700);
         g.fill(finalBx + 1, by + 1, finalBx + 2, by + bh - 1, 0xFFFFD700);
         g.fill(finalBx + bw - 2, by + 2, finalBx + bw - 1, by + bh - 2, 0xFF8C5F1C);
         g.fill(finalBx + 1, by + bh - 2, finalBx + bw - 1, by + bh - 1, 0xFF8C5F1C);
-        
+
         int textY = by + 5;
         for (String line : lines) {
             g.drawString(this.font, line, finalBx + 6, textY, 0xFFEEEEEE);
             textY += 10;
         }
-        
+
         g.flush();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
         g.pose().popPose();
     }
 
-    // ─── Ponder Input Click and Drag Managers ──────────────────────────────────
     private void handlePonderClick(int mx, int my) {
         if (currentPonderChapters.isEmpty()) return;
-        
+
         int pw = 500;
         int vh = 190;
-        
+
         float scale = 1.0f;
         int minMargin = 20;
         if (this.width < pw + minMargin * 2) {
@@ -4849,22 +5845,21 @@ public class NodeEditorScreen extends Screen {
         int px = (this.width - scaledPw) / 2;
         int py = (this.height - (scaledVh + (int)(35 * scale))) / 2;
         if (py < 16) py = 16;
-        
+
         int localMx = (int)((mx - px) / scale);
         int localMy = (int)((my - py) / scale);
-        
+
         boolean inClose = localMx >= pw - 15 && localMx < pw && localMy >= -15 && localMy < 0;
         boolean inWindow = localMx >= 0 && localMx < pw && localMy >= 0 && localMy < vh + 35;
-        
+
         if (inClose || !inWindow) {
             closePonder();
             return;
         }
-        
+
         int cy = vh + 6;
         int cy2 = cy + 13;
-        
-        // Play button click
+
         if (localMx >= 8 && localMx < 20 && localMy >= cy2 && localMy < cy2 + 12) {
             ponderPaused = !ponderPaused;
             if (!ponderPaused) {
@@ -4872,14 +5867,12 @@ public class NodeEditorScreen extends Screen {
             }
             return;
         }
-        
-        // Rewind button click
+
         if (localMx >= 24 && localMx < 36 && localMy >= cy2 && localMy < cy2 + 12) {
             ponderTimelineElapsedTime = 0.0;
             return;
         }
-        
-        // Scrubber click/drag start
+
         int sx = 8;
         int sw = 484;
         if (localMx >= sx && localMx < sx + sw && localMy >= cy + 1 && localMy < cy + 11) {
@@ -4887,7 +5880,7 @@ public class NodeEditorScreen extends Screen {
             handlePonderDrag(mx, my);
             return;
         }
-        
+
         float t = (float)(ponderTimelineElapsedTime / TOTAL_TIMELINE_DURATION_MS);
         int activeSec = Math.max(0, Math.min(3, (int)(t * 4)));
         PonderChapter currentSec = currentPonderChapters.get(activeSec);
@@ -4895,8 +5888,7 @@ public class NodeEditorScreen extends Screen {
         int lblW = this.font.width(chLabel);
         int switcherW = lblW + 34;
         int switcherX = (pw - switcherW) / 2;
-        
-        // Prev button click
+
         if (localMx >= switcherX && localMx < switcherX + 12 && localMy >= cy2 && localMy < cy2 + 12) {
             double secStart = activeSec * 6000.0;
             if (ponderTimelineElapsedTime - secStart < 500.0) {
@@ -4907,8 +5899,7 @@ public class NodeEditorScreen extends Screen {
             ponderLastUpdateNano = System.nanoTime();
             return;
         }
-        
-        // Next button click
+
         if (localMx >= switcherX + 16 + lblW + 6 && localMx < switcherX + 16 + lblW + 18 && localMy >= cy2 && localMy < cy2 + 12) {
             activeSec = (activeSec + 1) % 4;
             ponderTimelineElapsedTime = activeSec * 6000.0;
@@ -4920,10 +5911,10 @@ public class NodeEditorScreen extends Screen {
 
     private void handlePonderDrag(int mx, int my) {
         if (!isScrubberDragging || currentPonderChapters.isEmpty()) return;
-        
+
         int pw = 500;
         int vh = 190;
-        
+
         float scale = 1.0f;
         int minMargin = 20;
         if (this.width < pw + minMargin * 2) {
@@ -4934,15 +5925,15 @@ public class NodeEditorScreen extends Screen {
         int px = (this.width - scaledPw) / 2;
         int py = (this.height - (scaledVh + (int)(35 * scale))) / 2;
         if (py < 16) py = 16;
-        
+
         int localMx = (int)((mx - px) / scale);
-        
+
         int sx = 8;
         int sw = 484;
-        
+
         double progress = (double)(localMx - sx) / sw;
         progress = Math.max(0.0, Math.min(1.0, progress));
-        
+
         ponderTimelineElapsedTime = progress * TOTAL_TIMELINE_DURATION_MS;
         ponderPaused = true;
     }

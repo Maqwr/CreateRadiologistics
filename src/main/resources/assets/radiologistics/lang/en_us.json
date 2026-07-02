@@ -32,6 +32,8 @@
   "radiologistics.ponder.network_scene.text_2": "Right-click the computer with the module in hand to set it as a target.",
   "radiologistics.ponder.network_scene.text_3": "Then place the module block. It will connect to the targeted computer.",
   "radiologistics.ponder.network_scene.text_4": "You can also connect a Display Link and a Network Controller from Create Radars",
+  "radiologistics.ponder.network_scene.text_5": "Connect a Display Board to print dynamic train-station style board info.",
+  "radiologistics.ponder.network_scene.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.main_computer.header": "Computer Network Setup",
   "radiologistics.ponder.main_computer.text_1": "First, place the Main Computer. It is the CPU of your network.",
   "radiologistics.ponder.main_computer.text_2": "Right-click the computer with the module in hand to set it as a target.",
@@ -67,7 +69,6 @@
   "radiologistics.ponder.audio_module.text_2": "Right-click the computer with the module in hand to set it as a target.",
   "radiologistics.ponder.audio_module.text_3": "Then place the module block. It will connect to the targeted computer.",
   "radiologistics.ponder.audio_module.text_4": "You can also connect a Display Link and a Network Controller from Create Radars",
-
   "radiologistics.node_ponder.hold_w": "Hold W to learn about this node",
   "radiologistics.node_ponder.inputs": "Inputs:",
   "radiologistics.node_ponder.outputs": "Outputs:",
@@ -77,192 +78,145 @@
   "radiologistics.node_ponder.type.bool": "Bool",
   "radiologistics.node_ponder.type.text": "Text",
   "radiologistics.node_ponder.type.any": "Any",
-
   "radiologistics.node_ponder.signal.title": "Signal",
   "radiologistics.node_ponder.signal.desc": "Reads the last broadcast value on a wireless radio channel. Connect a number or text node to set the channel.",
   "radiologistics.node_ponder.signal.compat": "Bool Viewer, If, Or, Set Variable",
-
   "radiologistics.node_ponder.bool.title": "Bool",
   "radiologistics.node_ponder.bool.desc": "A constant Boolean value (TRUE or FALSE). Click the button in the node to toggle the value. Use as a constant condition or a static flag.",
   "radiologistics.node_ponder.bool.compat": "If, Or, Equal, Not Equal, Set Variable, Bool Viewer",
-
   "radiologistics.node_ponder.number.title": "Number",
   "radiologistics.node_ponder.number.desc": "A constant numeric value. Click the property field to type a new value. Supports decimals and negative numbers.",
   "radiologistics.node_ponder.number.compat": "Add, Subtract, Multiply, Divide, Equal, Greater Than, Less Than, RS Output, Link Output, Antenna Output",
-
   "radiologistics.node_ponder.text.title": "Text",
   "radiologistics.node_ponder.text.desc": "A constant text string. Click the property field to edit the text. Useful for fixed labels, sound IDs, or antenna channel names.",
   "radiologistics.node_ponder.text.compat": "Text Viewer, Text Join, Text Split, Display Link, Antenna Output, Text Speak",
-
   "radiologistics.node_ponder.comment.title": "Comment",
   "radiologistics.node_ponder.comment.desc": "A text annotation on the canvas. Does not affect logic. Click to edit. Use to document your algorithm.",
   "radiologistics.node_ponder.comment.compat": "—",
-
   "radiologistics.node_ponder.if.title": "If",
   "radiologistics.node_ponder.if.desc": "Passes the value of input B through to the output only when condition A is TRUE. If the condition is FALSE, the output is suppressed (no signal).",
   "radiologistics.node_ponder.if.compat": "Bool, Signal, Or, Equal, Not Equal, Greater Than, Less Than",
-
   "radiologistics.node_ponder.or.title": "Or",
   "radiologistics.node_ponder.or.desc": "Logical OR of two Boolean inputs. Returns TRUE if at least one of the inputs is TRUE. Both inputs must be Bool type.",
   "radiologistics.node_ponder.or.compat": "Bool, Signal, If, Set Variable, Bool Viewer",
-
   "radiologistics.node_ponder.equal.title": "Equal",
   "radiologistics.node_ponder.equal.desc": "Compares two values for equality. Returns TRUE if both inputs are exactly equal. Works with numbers, booleans, and text.",
   "radiologistics.node_ponder.equal.compat": "If, Bool Viewer, Or, Set Variable",
-
   "radiologistics.node_ponder.not_equal.title": "Not Equal",
   "radiologistics.node_ponder.not_equal.desc": "Compares two values and returns TRUE if they are NOT equal. Opposite of Equal node.",
   "radiologistics.node_ponder.not_equal.compat": "If, Bool Viewer, Or, Set Variable",
-
   "radiologistics.node_ponder.greater_than.title": "Greater Than",
   "radiologistics.node_ponder.greater_than.desc": "Returns TRUE if input A is strictly greater than input B. Both inputs must be numeric.",
   "radiologistics.node_ponder.greater_than.compat": "If, Bool Viewer, Or, Set Variable",
-
   "radiologistics.node_ponder.less_than.title": "Less Than",
   "radiologistics.node_ponder.less_than.desc": "Returns TRUE if input A is strictly less than input B. Both inputs must be numeric.",
   "radiologistics.node_ponder.less_than.compat": "If, Bool Viewer, Or, Set Variable",
-
   "radiologistics.node_ponder.add.title": "Add",
   "radiologistics.node_ponder.add.desc": "Adds two numeric inputs together (A + B). The result is output as a number.",
   "radiologistics.node_ponder.add.compat": "Number, Subtract, Multiply, Divide, Equal, Greater Than, Less Than, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.subtract.title": "Subtract",
   "radiologistics.node_ponder.subtract.desc": "Subtracts B from A (A - B). Both inputs must be numeric.",
   "radiologistics.node_ponder.subtract.compat": "Number, Add, Multiply, Divide, Equal, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.multiply.title": "Multiply",
   "radiologistics.node_ponder.multiply.desc": "Multiplies two numeric inputs (A × B).",
   "radiologistics.node_ponder.multiply.compat": "Number, Add, Divide, Floor, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.divide.title": "Divide",
   "radiologistics.node_ponder.divide.desc": "Divides A by B (A ÷ B). Division by zero returns 0.",
   "radiologistics.node_ponder.divide.compat": "Number, Add, Multiply, Floor, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.floor.title": "Floor",
   "radiologistics.node_ponder.floor.desc": "Rounds a number down to the nearest whole integer (e.g. 3.9 → 3, -1.2 → -2).",
   "radiologistics.node_ponder.floor.compat": "Number, Divide, Sqrt, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.sqrt.title": "Sqrt",
   "radiologistics.node_ponder.sqrt.desc": "Computes the square root of a number. Input must be non-negative; negative inputs return 0.",
   "radiologistics.node_ponder.sqrt.compat": "Number, Multiply, Atan2, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.square.title": "Square",
   "radiologistics.node_ponder.square.desc": "Raises the input to the power of 2 (x²). Equivalent to multiplying a number by itself.",
   "radiologistics.node_ponder.square.compat": "Number, Add, Sqrt, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.atan2.title": "Atan2",
   "radiologistics.node_ponder.atan2.desc": "Computes the angle (in degrees) between the positive X axis and the point (A, B). Useful for direction calculations.",
   "radiologistics.node_ponder.atan2.compat": "Number, Gyroscope, Gyro Position, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.invert.title": "Invert",
   "radiologistics.node_ponder.invert.desc": "Negates a number (-x). For example, 5 becomes -5 and -3 becomes 3.",
   "radiologistics.node_ponder.invert.compat": "Number, Add, Subtract, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.abs.title": "Abs",
   "radiologistics.node_ponder.abs.desc": "Returns the absolute value of a number (always non-negative). For example, -7 becomes 7.",
   "radiologistics.node_ponder.abs.compat": "Number, Add, Subtract, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.sin.title": "Sin",
   "radiologistics.node_ponder.sin.desc": "Computes the sine of the input angle in degrees. Returns a value between -1 and 1.",
   "radiologistics.node_ponder.sin.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.cos.title": "Cos",
   "radiologistics.node_ponder.cos.desc": "Computes the cosine of the input angle in degrees. Returns a value between -1 and 1.",
   "radiologistics.node_ponder.cos.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.tan.title": "Tan",
   "radiologistics.node_ponder.tan.desc": "Computes the tangent of the input angle in degrees.",
   "radiologistics.node_ponder.tan.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.ctg.title": "Ctg",
   "radiologistics.node_ponder.ctg.desc": "Computes the cotangent of the input angle in degrees (1 ÷ tan).",
   "radiologistics.node_ponder.ctg.compat": "Number, Gyroscope, Multiply, RS Output, Number Viewer",
-
   "radiologistics.node_ponder.redstone_output.title": "RS Output",
   "radiologistics.node_ponder.redstone_output.desc": "Emits a redstone signal from the specified face of the Main Computer block. The signal strength is proportional to the numeric input (0–15). Click to cycle the output face.",
   "radiologistics.node_ponder.redstone_output.compat": "Number, Add, Subtract, Multiply, Divide, If",
-
   "radiologistics.node_ponder.display_link.title": "Display Link",
   "radiologistics.node_ponder.display_link.desc": "Sends text to a connected Create Display Link block. The text value is forwarded whenever the graph evaluates.",
   "radiologistics.node_ponder.display_link.compat": "Text, Text Join, Text Speak, Number Viewer",
-
   "radiologistics.node_ponder.link_input.title": "Link Input",
   "radiologistics.node_ponder.link_input.desc": "Reads the numeric value from a Redstone Link channel. Configure two item frequencies using the hotbar. Requires a Redstone Link Module connected to the computer.",
   "radiologistics.node_ponder.link_input.compat": "Number Viewer, Add, Subtract, Equal, Greater Than, Less Than",
-
   "radiologistics.node_ponder.link_output.title": "Link Output",
   "radiologistics.node_ponder.link_output.desc": "Writes a numeric value to a Redstone Link channel. Configure two item frequencies using the hotbar. Requires a Redstone Link Module connected to the computer.",
   "radiologistics.node_ponder.link_output.compat": "Number, Add, Subtract, If",
-
   "radiologistics.node_ponder.gyroscope.title": "Gyroscope",
   "radiologistics.node_ponder.gyroscope.desc": "Reads the current Pitch and Yaw rotation angles of the contraption from the attached Gyroscope Sensor module. Outputs two numeric values in degrees.",
   "radiologistics.node_ponder.gyroscope.compat": "Sin, Cos, Tan, Atan2, Number Viewer, RS Output",
-
   "radiologistics.node_ponder.gyroscope_position.title": "Gyro Position",
   "radiologistics.node_ponder.gyroscope_position.desc": "Reads the absolute world X, Y, Z coordinates of the contraption from the Gyroscope Sensor. Outputs three numeric values.",
   "radiologistics.node_ponder.gyroscope_position.compat": "Subtract, Atan2, Number Viewer, RS Output",
-
   "radiologistics.node_ponder.antenna_output.title": "Antenna Output (Send Signal)",
   "radiologistics.node_ponder.antenna_output.desc": "Broadcasts a message on a radio channel when the event trigger fires. Accepts a channel number and any payload data. Requires an Antenna module.",
   "radiologistics.node_ponder.antenna_output.compat": "Bool (event), Number (channel), Text / Number / Bool (data)",
-
   "radiologistics.node_ponder.active_target.title": "Active Target",
   "radiologistics.node_ponder.active_target.desc": "Reads information about the currently targeted contraption from a Network Controller (Create Radars). Outputs the target's name, distance, pitch, yaw, and coordinates.",
   "radiologistics.node_ponder.active_target.compat": "Number Viewer, Text Viewer, Subtract, Atan2, RS Output",
-
   "radiologistics.node_ponder.jammer.title": "Jammer",
   "radiologistics.node_ponder.jammer.desc": "Activates the Jammer module to block radio communications within a configured channel range. Only one Jammer node is allowed per computer. Requires a Jammer module.",
   "radiologistics.node_ponder.jammer.compat": "Bool (event), Number (channel range)",
-
   "radiologistics.node_ponder.variable.title": "Get Variable",
   "radiologistics.node_ponder.variable.desc": "Reads the current value of a named variable from memory. The variable must be defined in the VARS panel. Requires a Memory Module.",
   "radiologistics.node_ponder.variable.compat": "If, Equal, Add, Bool Viewer, Number Viewer, Text Viewer",
-
   "radiologistics.node_ponder.set_variable.title": "Set Variable",
   "radiologistics.node_ponder.set_variable.desc": "Writes a value to a named variable in memory when the event trigger fires. The event input (Bool) controls when the write occurs. Requires a Memory Module.",
   "radiologistics.node_ponder.set_variable.compat": "Bool (event), Any (value) → Get Variable",
-
   "radiologistics.node_ponder.bool_viewer.title": "Bool Viewer",
   "radiologistics.node_ponder.bool_viewer.desc": "Displays the current Boolean value in the node editor GUI in real-time. Shows ACTIVE (green) or INACTIVE (red). Does not affect logic.",
   "radiologistics.node_ponder.bool_viewer.compat": "Bool, Signal, If, Or, Equal, Not Equal",
-
   "radiologistics.node_ponder.number_viewer.title": "Number Viewer",
   "radiologistics.node_ponder.number_viewer.desc": "Displays the current numeric value in the node editor GUI in real-time as an amber readout. Does not affect logic.",
   "radiologistics.node_ponder.number_viewer.compat": "Number, Add, Subtract, Multiply, Divide, Gyroscope, Link Input",
-
   "radiologistics.node_ponder.text_viewer.title": "Text Viewer",
   "radiologistics.node_ponder.text_viewer.desc": "Displays the current text value in the node editor GUI in real-time. Does not affect logic.",
   "radiologistics.node_ponder.text_viewer.compat": "Text, Text Join, Text Split, Antenna Input",
-
   "radiologistics.node_ponder.text_split.title": "Text Split",
   "radiologistics.node_ponder.text_split.desc": "Splits a text string by a delimiter and returns the Nth part. Input: text string and part index number. Useful for parsing radio messages.",
   "radiologistics.node_ponder.text_split.compat": "Text, Number → Text Viewer, Text Join, Display Link",
-
   "radiologistics.node_ponder.text_join.title": "Text Join",
   "radiologistics.node_ponder.text_join.desc": "Concatenates two text strings together into one. The second string is appended directly after the first.",
   "radiologistics.node_ponder.text_join.compat": "Text, Text Split → Text Viewer, Display Link, Antenna Output",
-
   "radiologistics.node_ponder.text_speak.title": "Text Stream",
   "radiologistics.node_ponder.text_speak.desc": "Packages a text string into a TTS audio stream that an Audio Play node can consume. Connect to Audio Play's stream input to make the audio module speak text.",
   "radiologistics.node_ponder.text_speak.compat": "Text (text), Number (volume, pitch) → Audio Play (stream)",
-
   "radiologistics.node_ponder.sound_play.title": "Link Stream",
-  "radiologistics.node_ponder.sound_play.desc": "Packages a URL and playback parameters into an audio stream that an Audio Play node can consume. Supports WAV, MP3, and YouTube links.",
+  "radiologistics.node_ponder.sound_play.desc": "Packages a URL and playback parameters into an audio stream that an Audio Play node can consume. Direct audio file URLs only (MP3/WAV, e.g., from Discord, Dropbox with raw=1, Google Drive export, or direct web URLs).",
   "radiologistics.node_ponder.sound_play.compat": "Text (URL), Number (volume, pitch) → Audio Play (stream)",
-
   "radiologistics.node_ponder.random.title": "Random",
   "radiologistics.node_ponder.random.desc": "Generates a random decimal number between min and max inputs. If both inputs are integers, it outputs an integer.",
   "radiologistics.node_ponder.random.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
-
   "radiologistics.node_ponder.degree_vector.title": "Deg Vector",
   "radiologistics.node_ponder.degree_vector.desc": "Calculates the shortest angle difference to add to degree A to get degree B. Accounts for angular wrapping at -180 and 180 degrees.",
   "radiologistics.node_ponder.degree_vector.compat": "Number, Add, Subtract, Multiply, Divide, Number Viewer",
-
   "item.radiologistics.wired_inertia_fuze.tooltip.chance": "Impact Chance",
   "item.radiologistics.wired_inertia_fuze.tooltip.chance.value": "Upon impact this fuze has a _%s%%_ chance to detonate.",
   "item.radiologistics.wired_inertia_fuze.tooltip.durability": "Penetration Durability",
   "item.radiologistics.wired_inertia_fuze.tooltip.durability.value": "This fuze can break through _%s_ blocks before breaking.",
-
   "item.radiologistics.incomplete_pilot_helmet": "Incomplete Pilot Helmet",
   "item.radiologistics.pilot_helmet": "Pilot Helmet",
   "item.radiologistics.wire": "Wire",
@@ -287,53 +241,68 @@
   "radiologistics.node_ponder.color_rgb.compat": "Gizmos 2D, Gizmos 3D",
   "message.radiologistics.cassette_inserted": "Cassette inserted into the computer.",
   "message.radiologistics.cassette_extracted": "Cassette extracted from the computer.",
-
   "radiologistics.node_ponder.cannon_rot.title": "Cannon Rot",
   "radiologistics.node_ponder.cannon_rot.desc": "Queries current Pitch and Yaw angles of the connected Cannon Mount. Requires a wired Cannon Mount module.",
   "radiologistics.node_ponder.cannon_rot.compat": "Number Viewer, Subtract, Atan2",
-
   "radiologistics.ponder.main_computer.text_5": "Connect a Display Board to print dynamic train-station style board info.",
-  "radiologistics.ponder.main_computer.text_6": "Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.",
-  "radiologistics.ponder.main_computer.text_7": "Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!",
-
+  "radiologistics.ponder.main_computer.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.redstone_link_module.text_5": "Connect a Display Board to print dynamic train-station style board info.",
-  "radiologistics.ponder.redstone_link_module.text_6": "Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.",
-  "radiologistics.ponder.redstone_link_module.text_7": "Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!",
-
+  "radiologistics.ponder.redstone_link_module.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.memory_module.text_5": "Connect a Display Board to print dynamic train-station style board info.",
-  "radiologistics.ponder.memory_module.text_6": "Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.",
-  "radiologistics.ponder.memory_module.text_7": "Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!",
-
+  "radiologistics.ponder.memory_module.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.gyroscope_sensor.text_5": "Connect a Display Board to print dynamic train-station style board info.",
-  "radiologistics.ponder.gyroscope_sensor.text_6": "Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.",
-  "radiologistics.ponder.gyroscope_sensor.text_7": "Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!",
-
+  "radiologistics.ponder.gyroscope_sensor.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.antenna.text_5": "Connect a Display Board to print dynamic train-station style board info.",
-  "radiologistics.ponder.antenna.text_6": "Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.",
-  "radiologistics.ponder.antenna.text_7": "Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!",
-
+  "radiologistics.ponder.antenna.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.jammer.text_5": "Connect a Display Board to print dynamic train-station style board info.",
-  "radiologistics.ponder.jammer.text_6": "Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.",
-  "radiologistics.ponder.jammer.text_7": "Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!",
-
+  "radiologistics.ponder.jammer.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.audio_module.text_5": "Connect a Display Board to print dynamic train-station style board info.",
-  "radiologistics.ponder.audio_module.text_6": "Or hook up a Cannon Mount from Create Big Cannons to automatically align and fire cannons.",
-  "radiologistics.ponder.audio_module.text_7": "Finally, link a Vista Camera to retrieve video streams and control its Pitch and Yaw lens rotation!",
-
+  "radiologistics.ponder.audio_module.text_6": "Or hook up a Cannon Mount from Create Big Cannons to receive its current pitch and yaw angles.",
   "radiologistics.ponder.transparent_screen.header": "Using the Transparent Screen",
   "radiologistics.ponder.transparent_screen.text_1": "The Transparent Screen outputs 2D/3D graphics, text, and camera feeds.",
   "radiologistics.ponder.transparent_screen.text_2": "Use a Wire to connect the Screen block directly to the Main Computer.",
   "radiologistics.ponder.transparent_screen.text_3": "Once linked, the computer's graph node layout will output graphics directly on the screen canvas!",
-
   "radiologistics.ponder.pilot_helmet.header": "Using the Pilot Helmet HUD",
   "radiologistics.ponder.pilot_helmet.text_1": "The Pilot Helmet displays custom HUD graphics, telemetry, and camera streams on your screen.",
   "radiologistics.ponder.pilot_helmet.text_2": "Right-click the Main Computer with the Pilot Helmet in hand to link them together.",
   "radiologistics.ponder.pilot_helmet.text_3": "Wear the linked helmet in your head armor slot. The computer will stream HUD overlay shapes, lines, text, and camera feeds directly to your screen!",
-
   "radiologistics.ponder.pilothelmet.header": "Using the Pilot Helmet HUD",
   "radiologistics.ponder.pilothelmet.text_1": "The Pilot Helmet displays custom HUD graphics, telemetry, and camera streams on your screen.",
   "radiologistics.ponder.pilothelmet.text_2": "Right-click the Main Computer with the Pilot Helmet in hand to link them together.",
   "radiologistics.ponder.pilothelmet.text_3": "Wear the linked helmet in your head armor slot. The computer will stream HUD overlay shapes, lines, text, and camera feeds directly to your screen!",
   "radiologistics.ponder.pilothelmet.text_4": "Wear the linked helmet in your head armor slot. The computer will stream HUD overlay shapes, lines, text, and camera feeds directly to your screen!",
-  "radiologistics.ponder.pilothelmet.text_5": "Wear the linked helmet in your head armor slot. The computer will stream HUD overlay shapes, lines, text, and camera feeds directly to your screen!"
+  "radiologistics.ponder.pilothelmet.text_5": "Wear the linked helmet in your head armor slot. The computer will stream HUD overlay shapes, lines, text, and camera feeds directly to your screen!",
+  "radiologistics.ponder.servo_motor.header": "Using the Servo Motor",
+  "radiologistics.ponder.servo_motor.text_1": "Place the Main Computer first. It will control the servo motor.",
+  "radiologistics.ponder.servo_motor.text_2": "Right-click the Main Computer with the Servo Motor in hand to assign the link target.",
+  "radiologistics.ponder.servo_motor.text_3": "Place the Servo Motor and connect kinetic energy (like a creative motor or shaft) to the back input shaft.",
+  "radiologistics.ponder.servo_motor.text_4": "Once connected, you can program node logic to set the motor's target angle and retrieve current feedback.",
+  "radiologistics.ponder.smart_optical_sensor.header": "Using the Smart Optical Sensor",
+  "radiologistics.ponder.smart_optical_sensor.text_1": "The Smart Optical Sensor raycasts up to 150 blocks in its facing direction.",
+  "radiologistics.ponder.smart_optical_sensor.text_2": "When hitting blocks or entities, it emits redstone power (15) and draws a red laser dot.",
+  "radiologistics.ponder.smart_optical_sensor.text_3": "Use the range switch on the sensor to adjust the maximum detection distance (up to 150 blocks).",
+  "radiologistics.ponder.smart_optical_sensor.text_4": "It can output the target name and its coordinates via Display Links.",
+  "radiologistics.ponder.smart_optical_sensor.text_5": "Connect a Display Link to the back of the sensor, and link it to a Display Board to print the block's information dynamically!",
+  "block.radiologistics.servo_motor": "Servo Motor",
+  "tooltip.radiologistics.servo_motor": "Rotates the motor shaft and horn smoothly based on computer commands.\n§6Added Nodes:\n§e- Servo Ctrl: §7Sets target angle (-180 to 180 degrees).\n§e- Servo Angle: §7Reads current physical angle.",
+  "block.radiologistics.smart_optical_sensor": "Smart Optical Sensor",
+  "tooltip.radiologistics.smart_optical_sensor": "Raycasts up to 150 blocks in its facing direction.\n- Toggles range settings using the range switch on the block.\n- Outputs redstone signal (15) when hitting blocks or entities.\n- Outputs looked-at block/entity name and coordinates (separated by semicolons) via Display Links.",
+  "radiologistics.node_ponder.camera_screen.title": "Camera Screen",
+  "radiologistics.node_ponder.camera_screen.desc": "Outputs live camera feed overlaid with 3D gizmos directly to the Transparent Screen.",
+  "radiologistics.node_ponder.camera_screen.compat": "Screen",
+  "radiologistics.node_ponder.servo_control.title": "Servo Ctrl",
+  "radiologistics.node_ponder.servo_control.desc": "Sets the target rotation angle (-180 to 180) for the linked Servo Motor.",
+  "radiologistics.node_ponder.servo_control.compat": "Servo Motor",
+  "radiologistics.node_ponder.servo_angle.title": "Servo Angle",
+  "radiologistics.node_ponder.servo_angle.desc": "Reads the current real-time rotation angle of the linked Servo Motor.",
+  "radiologistics.node_ponder.servo_angle.compat": "Servo Motor",
+  "radiologistics.node_ponder.get_list.title": "Get List",
+  "radiologistics.node_ponder.get_list.desc": "Retrieves a value from a JSON list/map variable by key.",
+  "radiologistics.node_ponder.get_list.compat": "Memory Module",
+  "radiologistics.node_ponder.set_list.title": "Set List",
+  "radiologistics.node_ponder.set_list.desc": "Writes a key-value pair to a JSON list/map variable on an event trigger.",
+  "radiologistics.node_ponder.set_list.compat": "Memory Module",
+  "radiologistics.node_ponder.custom.title": "Custom Node",
+  "radiologistics.node_ponder.custom.desc": "Evaluates custom mathematical formulas defined via JSON schema.",
+  "radiologistics.node_ponder.custom.compat": "Memory Module"
 }

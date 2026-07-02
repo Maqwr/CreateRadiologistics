@@ -87,16 +87,15 @@ public class CameraNode extends AlgoNode {
         cameraObj.addProperty("cz", computerPos.getZ());
         cameraObj.addProperty("res", grid);
         cameraObj.addProperty("layer", layer);
-        
+
         Object gizmosInput = inputValues.get("gizmos");
         String gizmosJson = (gizmosInput != null) ? String.valueOf(gizmosInput) : "[]";
         cameraObj.addProperty("gizmos", gizmosJson);
 
-        // Серверне керування камерою (Zoom, Pitch, Yaw)
         boolean changed = false;
         if (!context.getLevel().isClientSide()) {
             try {
-                // Отримуємо UUID трансляції з касети
+
                 java.util.UUID broadcastUUID = null;
                 Class<?> vistaModClass = Class.forName("net.mehvahdjukaar.vista.VistaMod");
                 java.util.function.Supplier<?> linkedFeedComponentSupplier = (java.util.function.Supplier<?>) vistaModClass.getField("LINKED_FEED_COMPONENT").get(null);
@@ -111,8 +110,7 @@ public class CameraNode extends AlgoNode {
                         java.lang.reflect.Method getBroadcastMethod = broadcastManagerClass.getMethod("getBroadcast", java.util.UUID.class, boolean.class);
                         Object broadcastSource = getBroadcastMethod.invoke(broadcastManager, broadcastUUID, false);
                         if (broadcastSource != null && broadcastSource.getClass().getName().equals("net.mehvahdjukaar.vista.common.view_finder.ViewFinderBlockEntity")) {
-                            
-                            // 1. Zoom
+
                             if (hasZoom) {
                                 java.lang.reflect.Method setZoomMethod = broadcastSource.getClass().getMethod("setZoomLevel", int.class);
                                 int maxZoom = 4;
@@ -131,7 +129,6 @@ public class CameraNode extends AlgoNode {
                                 } catch (Throwable ignored) {}
                             }
 
-                            // 2. Orientation (pitch & yaw)
                             if (hasPitch || hasYaw) {
                                 float finalPitch = 0.0f;
                                 float finalYaw = 0.0f;
@@ -158,7 +155,6 @@ public class CameraNode extends AlgoNode {
                                 changed = true;
                             }
 
-                            // Позначаємо як змінений та оновлюємо
                             if (changed && broadcastSource instanceof net.minecraft.world.level.block.entity.BlockEntity be) {
                                 be.setChanged();
                                 net.minecraft.world.level.block.state.BlockState state = be.getBlockState();
@@ -167,9 +163,7 @@ public class CameraNode extends AlgoNode {
                         }
                     }
                 }
-            } catch (Throwable t) {
-                t.printStackTrace();
-            }
+            } catch (Throwable ignored) {}
         }
 
         try {
@@ -177,9 +171,7 @@ public class CameraNode extends AlgoNode {
                 net.minecraft.nbt.CompoundTag tag = (net.minecraft.nbt.CompoundTag) cassette.save(context.getLevel().registryAccess());
                 cameraObj.addProperty("cassette_nbt", tag.toString());
             }
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        } catch (Throwable ignored) {}
 
         arr.add(cameraObj);
         return GSON.toJson(arr);

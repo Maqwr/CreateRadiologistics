@@ -13,11 +13,29 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AudioPlayNode extends AlgoNode {
-    public record PlayingSoundState(String url, double volume, double pitch, long startTick) {}
+    public static class PlayingSoundState {
+        private final String url;
+        private final double volume;
+        private final double pitch;
+        private final long startTick;
+        private final Set<UUID> sentPlayers = ConcurrentHashMap.newKeySet();
+
+        public PlayingSoundState(String url, double volume, double pitch, long startTick) {
+            this.url = url;
+            this.volume = volume;
+            this.pitch = pitch;
+            this.startTick = startTick;
+        }
+
+        public String url() { return url; }
+        public double volume() { return volume; }
+        public double pitch() { return pitch; }
+        public long startTick() { return startTick; }
+        public Set<UUID> getSentPlayers() { return sentPlayers; }
+    }
     public static final Map<BlockPos, PlayingSoundState> activeSounds = new ConcurrentHashMap<>();
     private static final Map<BlockPos, Long> lastParticleTicks = new ConcurrentHashMap<>();
     private static final Map<BlockPos, Long> finishedTicks = new ConcurrentHashMap<>();
-
     public static void stopPlaying(BlockPos pos) {
         activeSounds.remove(pos);
         lastParticleTicks.remove(pos);
@@ -95,8 +113,6 @@ public class AudioPlayNode extends AlgoNode {
         Object streamVal = inputValues.get("stream");
         String streamStr = streamVal != null ? String.valueOf(streamVal).trim() : "";
 
-        boolean wasPlaying = activeSounds.containsKey(targetPos);
-
         if (currentEvent && !streamStr.isEmpty()) {
             try {
                 com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseString(streamStr).getAsJsonObject();
@@ -107,31 +123,31 @@ public class AudioPlayNode extends AlgoNode {
                     double pitch = obj.has("pitch") ? obj.get("pitch").getAsDouble() : 1.0;
 
                     PlayingSoundState current = activeSounds.get(targetPos);
+
                     long startTick;
-                    if (current == null || !url.equals(current.url())) {
+                    if (current == null || !url.equals(current.url()) || volume != current.volume() || pitch != current.pitch()) {
                         startTick = context.getLevel().getGameTime();
+                        current = new PlayingSoundState(url, volume, pitch, startTick);
+                        activeSounds.put(targetPos, current);
                     } else {
                         startTick = current.startTick();
                     }
 
-                    long currentTick = context.getLevel().getGameTime();
-                    double seekSeconds = Math.max(0.0, (currentTick - startTick) / 20.0);
-
-                    if (current == null || !url.equals(current.url()) || volume != current.volume() || pitch != current.pitch()) {
-                        activeSounds.put(targetPos, new PlayingSoundState(url, volume, pitch, startTick));
+                        long currentTick = context.getLevel().getGameTime();
+                        double seekSeconds = Math.max(0.0, (currentTick - startTick) / 20.0);
 
                         net.minecraft.world.level.Level level = context.getLevel();
                         net.minecraft.world.level.Level parentLevel = level;
-                        try {
-                            Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-                            if (subLevelClass.isInstance(level)) {
+                        if (com.radiologistics.create.block.MainComputerBlockEntity.isSableSubLevel(level)) {
+                            try {
+                                Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
                                 java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
                                 net.minecraft.world.level.Level parent = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
                                 if (parent != null) {
                                     parentLevel = parent;
                                 }
-                            }
-                        } catch (Throwable ignored) {}
+                            } catch (Throwable ignored) {}
+                        }
 
                         Vec3 center = new Vec3(targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5);
                         try {
@@ -145,41 +161,57 @@ public class AudioPlayNode extends AlgoNode {
                         } catch (Throwable ignored) {}
 
                         double r = 24.0;
+                        Set<UUID> currentInVolumeRange = new HashSet<>();
                         for (Player player : parentLevel.players()) {
                             if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
                                 if (serverPlayer.distanceToSqr(center) <= r * r) {
-                                    PacketDistributor.sendToPlayer(serverPlayer, new PlayAudioModulePacket(targetPos, true, "url", url, volume, pitch, seekSeconds));
+                                    UUID uuid = serverPlayer.getUUID();
+                                    currentInVolumeRange.add(uuid);
+                                    if (!current.getSentPlayers().contains(uuid)) {
+                                        current.getSentPlayers().add(uuid);
+                                        PacketDistributor.sendToPlayer(serverPlayer, new PlayAudioModulePacket(targetPos, true, "url", url, volume, pitch, seekSeconds));
+                                    }
                                 }
                             }
                         }
-                    }
-                    // Spawn NOTE particles scattered across the module surface
-                    long currentTickForParticle = context.getLevel().getGameTime();
-                    Long lastPt = lastParticleTicks.get(targetPos);
-                    if (lastPt == null || currentTickForParticle - lastPt >= 4) {
-                        lastParticleTicks.put(targetPos, currentTickForParticle);
-                        net.minecraft.world.level.Level particleLevel = context.getLevel();
-                        try {
-                            Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-                            if (subLevelClass.isInstance(particleLevel)) {
-                                java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
-                                net.minecraft.world.level.Level parent = (net.minecraft.world.level.Level) getLevelMethod.invoke(particleLevel);
-                                if (parent != null) particleLevel = parent;
-                            }
-                        } catch (Throwable ignored) {}
-                        if (particleLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                            // Scatter 3 particles randomly over the 14x14 module face (offsets -0.35 to +0.35)
-                            java.util.Random rand = new java.util.Random();
-                            for (int i = 0; i < 3; i++) {
-                                double px = targetPos.getX() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
-                                double py = targetPos.getY() + 0.3;
-                                double pz = targetPos.getZ() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
-                                serverLevel.sendParticles(net.minecraft.core.particles.ParticleTypes.NOTE,
-                                        px, py, pz, 0, rand.nextDouble(), 0.0, 0.0, 1.0);
+
+                        Set<UUID> exitedPlayers = new HashSet<>(current.getSentPlayers());
+                        exitedPlayers.removeAll(currentInVolumeRange);
+                        for (UUID uuid : exitedPlayers) {
+                            net.minecraft.server.level.ServerPlayer player = parentLevel.getServer().getPlayerList().getPlayer(uuid);
+                            if (player != null) {
+                                PacketDistributor.sendToPlayer(player, new PlayAudioModulePacket(targetPos, false, "url", "", 1.0, 1.0, 0.0));
                             }
                         }
-                    }
-                } else if ("tts".equals(type)) {
+
+                        current.getSentPlayers().retainAll(currentInVolumeRange);
+
+                        long currentTickForParticle = context.getLevel().getGameTime();
+                        Long lastPt = lastParticleTicks.get(targetPos);
+                        if (lastPt == null || currentTickForParticle - lastPt >= 4) {
+                            lastParticleTicks.put(targetPos, currentTickForParticle);
+                            net.minecraft.world.level.Level particleLevel = context.getLevel();
+                            if (com.radiologistics.create.block.MainComputerBlockEntity.isSableSubLevel(particleLevel)) {
+                                try {
+                                    Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+                                    java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
+                                    net.minecraft.world.level.Level parent = (net.minecraft.world.level.Level) getLevelMethod.invoke(particleLevel);
+                                    if (parent != null) particleLevel = parent;
+                                } catch (Throwable ignored) {}
+                            }
+                            if (particleLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+
+                                java.util.Random rand = new java.util.Random();
+                                for (int i = 0; i < 3; i++) {
+                                    double px = targetPos.getX() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
+                                    double py = targetPos.getY() + 0.3;
+                                    double pz = targetPos.getZ() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
+                                    serverLevel.sendParticles(net.minecraft.core.particles.ParticleTypes.NOTE,
+                                            px, py, pz, 0, rand.nextDouble(), 0.0, 0.0, 1.0);
+                                }
+                            }
+                        }
+                    } else if ("tts".equals(type)) {
                     String text = obj.has("text") ? obj.get("text").getAsString() : "";
                     double volume = obj.has("volume") ? obj.get("volume").getAsDouble() : 1.0;
                     double pitch  = obj.has("pitch")  ? obj.get("pitch").getAsDouble()  : 1.0;
@@ -188,19 +220,22 @@ public class AudioPlayNode extends AlgoNode {
                     if (!text.isEmpty()) {
                         String ttsKey = "tts:" + text + ":" + language;
                         PlayingSoundState current = activeSounds.get(targetPos);
+
                         if (current == null || !ttsKey.equals(current.url()) || volume != current.volume() || pitch != current.pitch()) {
-                            activeSounds.put(targetPos, new PlayingSoundState(ttsKey, volume, pitch, context.getLevel().getGameTime()));
+                            current = new PlayingSoundState(ttsKey, volume, pitch, context.getLevel().getGameTime());
+                            activeSounds.put(targetPos, current);
+                        }
 
                             net.minecraft.world.level.Level level = context.getLevel();
                             net.minecraft.world.level.Level parentLevel = level;
-                            try {
-                                Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-                                if (subLevelClass.isInstance(level)) {
+                            if (com.radiologistics.create.block.MainComputerBlockEntity.isSableSubLevel(level)) {
+                                try {
+                                    Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
                                     java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
                                     net.minecraft.world.level.Level parent = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
                                     if (parent != null) parentLevel = parent;
-                                }
-                            } catch (Throwable ignored) {}
+                                } catch (Throwable ignored) {}
+                            }
 
                             Vec3 center = new Vec3(targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5);
                             try {
@@ -213,48 +248,63 @@ public class AudioPlayNode extends AlgoNode {
 
                             String packetData = language + "|" + text;
                             double r = 24.0;
+                            Set<UUID> currentInVolumeRange = new HashSet<>();
                             for (Player player : parentLevel.players()) {
                                 if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
                                     if (serverPlayer.distanceToSqr(center) <= r * r) {
-                                        PacketDistributor.sendToPlayer(serverPlayer,
-                                            new PlayAudioModulePacket(targetPos, true, "tts", packetData, volume, pitch, 0.0));
+                                        UUID uuid = serverPlayer.getUUID();
+                                        currentInVolumeRange.add(uuid);
+                                        if (!current.getSentPlayers().contains(uuid)) {
+                                            current.getSentPlayers().add(uuid);
+                                            PacketDistributor.sendToPlayer(serverPlayer,
+                                                new PlayAudioModulePacket(targetPos, true, "tts", packetData, volume, pitch, 0.0));
+                                        }
+                                    }
+                                }
+                            }
+
+                            Set<UUID> exitedPlayers = new HashSet<>(current.getSentPlayers());
+                            exitedPlayers.removeAll(currentInVolumeRange);
+                            for (UUID uuid : exitedPlayers) {
+                                net.minecraft.server.level.ServerPlayer player = parentLevel.getServer().getPlayerList().getPlayer(uuid);
+                                if (player != null) {
+                                    PacketDistributor.sendToPlayer(player, new PlayAudioModulePacket(targetPos, false, "tts", "", 1.0, 1.0, 0.0));
+                                }
+                            }
+
+                            current.getSentPlayers().retainAll(currentInVolumeRange);
+
+                            long currentTickForParticle = context.getLevel().getGameTime();
+                            Long lastPt = lastParticleTicks.get(targetPos);
+                            if (lastPt == null || currentTickForParticle - lastPt >= 4) {
+                                lastParticleTicks.put(targetPos, currentTickForParticle);
+                                net.minecraft.world.level.Level particleLevel = context.getLevel();
+                                if (com.radiologistics.create.block.MainComputerBlockEntity.isSableSubLevel(particleLevel)) {
+                                    try {
+                                        Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+                                        java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
+                                        net.minecraft.world.level.Level parent = (net.minecraft.world.level.Level) getLevelMethod.invoke(particleLevel);
+                                        if (parent != null) particleLevel = parent;
+                                    } catch (Throwable ignored) {}
+                                }
+                                if (particleLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                                    java.util.Random rand = new java.util.Random();
+                                    for (int i = 0; i < 3; i++) {
+                                        double px = targetPos.getX() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
+                                        double py = targetPos.getY() + 0.3;
+                                        double pz = targetPos.getZ() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
+                                        serverLevel.sendParticles(net.minecraft.core.particles.ParticleTypes.NOTE,
+                                                px, py, pz, 0, rand.nextDouble(), 0.0, 0.0, 1.0);
                                     }
                                 }
                             }
                         }
-
-                        // Spawn NOTE particles scattered across the module surface
-                        long currentTickForParticle = context.getLevel().getGameTime();
-                        Long lastPt = lastParticleTicks.get(targetPos);
-                        if (lastPt == null || currentTickForParticle - lastPt >= 4) {
-                            lastParticleTicks.put(targetPos, currentTickForParticle);
-                            net.minecraft.world.level.Level particleLevel = context.getLevel();
-                            try {
-                                Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-                                if (subLevelClass.isInstance(particleLevel)) {
-                                    java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
-                                    net.minecraft.world.level.Level parent = (net.minecraft.world.level.Level) getLevelMethod.invoke(particleLevel);
-                                    if (parent != null) particleLevel = parent;
-                                }
-                            } catch (Throwable ignored) {}
-                            if (particleLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                                java.util.Random rand = new java.util.Random();
-                                for (int i = 0; i < 3; i++) {
-                                    double px = targetPos.getX() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
-                                    double py = targetPos.getY() + 0.3;
-                                    double pz = targetPos.getZ() + 0.5 + (rand.nextDouble() - 0.5) * 0.7;
-                                    serverLevel.sendParticles(net.minecraft.core.particles.ParticleTypes.NOTE,
-                                            px, py, pz, 0, rand.nextDouble(), 0.0, 0.0, 1.0);
-                                }
-                            }
-                        }
-                    }
-                } else if ("voice".equals(type)) {
+                    } else if ("voice".equals(type)) {
                     String playerUuidStr = obj.get("player_uuid").getAsString();
                     UUID playerUUID = UUID.fromString(playerUuidStr);
 
                     long currentTick = context.getLevel().getGameTime();
-                    
+
                     if (net.neoforged.fml.ModList.get().isLoaded("voicechat")) {
                         com.radiologistics.create.compat.VoiceChatPluginImpl.addOrUpdateRelay(
                             playerUUID, targetPos, context.getLevel().dimension(), 24, currentTick
@@ -263,33 +313,30 @@ public class AudioPlayNode extends AlgoNode {
                 }
             } catch (Exception ignored) {}
         } else {
-            // Only stop if something was actually playing — prevents packet spam every tick when Event=false
+
             PlayingSoundState state = activeSounds.remove(targetPos);
             lastParticleTicks.remove(targetPos);
 
             if (state != null) {
-                // Transition: was playing → now stopped. Send stop packets exactly once.
+
                 net.minecraft.world.level.Level level = context.getLevel();
                 net.minecraft.world.level.Level parentLevel = level;
-                try {
-                    Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-                    if (subLevelClass.isInstance(level)) {
+                if (com.radiologistics.create.block.MainComputerBlockEntity.isSableSubLevel(level)) {
+                    try {
+                        Class<?> subLevelClass = Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
                         java.lang.reflect.Method getLevelMethod = subLevelClass.getMethod("getLevel");
                         net.minecraft.world.level.Level parent = (net.minecraft.world.level.Level) getLevelMethod.invoke(level);
                         if (parent != null) {
                             parentLevel = parent;
                         }
-                    }
-                } catch (Throwable ignored) {}
+                    } catch (Throwable ignored) {}
+                }
 
-                Vec3 center = new Vec3(targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5);
-                double r = 32.0;
-                for (Player player : parentLevel.players()) {
-                    if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-                        if (serverPlayer.distanceToSqr(center) <= r * r) {
-                            PacketDistributor.sendToPlayer(serverPlayer, new PlayAudioModulePacket(targetPos, false, "url", "", 1.0, 1.0, 0.0));
-                            PacketDistributor.sendToPlayer(serverPlayer, new PlayAudioModulePacket(targetPos, false, "tts", "", 1.0, 1.0, 0.0));
-                        }
+                for (UUID uuid : state.getSentPlayers()) {
+                    net.minecraft.server.level.ServerPlayer serverPlayer = parentLevel.getServer().getPlayerList().getPlayer(uuid);
+                    if (serverPlayer != null) {
+                        PacketDistributor.sendToPlayer(serverPlayer, new PlayAudioModulePacket(targetPos, false, "url", "", 1.0, 1.0, 0.0));
+                        PacketDistributor.sendToPlayer(serverPlayer, new PlayAudioModulePacket(targetPos, false, "tts", "", 1.0, 1.0, 0.0));
                     }
                 }
             }

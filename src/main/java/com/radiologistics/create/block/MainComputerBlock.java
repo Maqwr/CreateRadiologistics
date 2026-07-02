@@ -71,6 +71,7 @@ public class MainComputerBlock extends Block implements EntityBlock, com.simibub
             || item == com.radiologistics.create.registry.ModItems.JAMMER.get()
             || item == com.radiologistics.create.registry.ModItems.AUDIO_MODULE.get()
             || item == com.radiologistics.create.registry.ModItems.TRANSPARENT_SCREEN.get()
+            || item == com.radiologistics.create.registry.ModItems.SERVO_MOTOR.get()
             || isNetworkFiltererItem(item);
     }
 
@@ -116,6 +117,9 @@ public class MainComputerBlock extends Block implements EntityBlock, com.simibub
             }
             return ItemInteractionResult.sidedSuccess(level.isClientSide());
         }
+        if (stack.getItem() == com.radiologistics.create.registry.ModItems.WIRE.get()) {
+            return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        }
         if (isModuleItem(stack)) {
             if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
                 com.radiologistics.create.network.PlayerLinkManager.setPendingLink(serverPlayer, pos);
@@ -146,7 +150,7 @@ public class MainComputerBlock extends Block implements EntityBlock, com.simibub
                 }
                 nbt.put("connectedModules", modulesList);
                 nbt.putInt("jammerCount", computer.getJammers().size());
-                // Send current graph NBT to the client to open the canvas
+
                 PacketDistributor.sendToPlayer(serverPlayer, new OpenComputerScreenPacket(pos, nbt));
             }
         }
@@ -162,7 +166,7 @@ public class MainComputerBlock extends Block implements EntityBlock, com.simibub
     protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction side) {
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof MainComputerBlockEntity computer) {
-            // 'side' is direction pointing out of neighbor to computer, so we query the opposite side
+
             return computer.getRedstoneOutput(side.getOpposite());
         }
         return 0;

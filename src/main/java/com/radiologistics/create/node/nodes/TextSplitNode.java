@@ -39,7 +39,7 @@ public class TextSplitNode extends AlgoNode {
         } else if (partObj instanceof String s) {
             try { partNum = (int) Double.parseDouble(s); } catch (Exception ignored) {}
         }
-        
+
         String[] parts;
         if (separator.isEmpty()) {
             parts = textVal.split("");

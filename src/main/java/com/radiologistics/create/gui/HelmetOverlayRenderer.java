@@ -42,17 +42,16 @@ public class HelmetOverlayRenderer {
             alpha = alpha * alpha;
             int alphaInt = (int) (alpha * 0x60);
             int col = (alphaInt << 24) | 0x0055FF;
-            // Top: fade downwards from top (y=0) to y=borderSize
+
             g.fill(0, i, screenW, i + 2, col);
-            // Bottom: fade upwards from bottom (y=screenH) to y=screenH-borderSize
+
             g.fill(0, screenH - i - 2, screenW, screenH - i, col);
-            // Left: fade rightwards from left (x=0) to x=borderSize
+
             g.fill(i, 0, i + 2, screenH, col);
-            // Right: fade leftwards from right (x=screenW) to x=screenW-borderSize
+
             g.fill(screenW - i - 2, 0, screenW - i, screenH, col);
         }
 
-        // Read linked computer pos from helmet NBT
         BlockPos linkedPos = null;
         net.minecraft.world.item.component.CustomData customData = head.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
         if (customData != null) {
@@ -118,7 +117,7 @@ public class HelmetOverlayRenderer {
         String text = obj.has("text") ? obj.get("text").getAsString() : "";
         int outline = obj.has("outline") ? obj.get("outline").getAsInt() : 100;
 
-        int col = parseColor(colorStr, 0xFF00FFFF); // default cyan
+        int col = parseColor(colorStr, 0xFF00FFFF);
 
         if (shape.equals("rect")) {
             int ix = (int) (x - w / 2.0);
@@ -128,10 +127,10 @@ public class HelmetOverlayRenderer {
             if (iw > 0 && ih > 0) {
                 if (outline < 100) {
                     int thickness = Math.min(Math.min(iw / 2, ih / 2), Math.max(1, outline));
-                    fillClamped(g, ix, iy, ix + iw, iy + thickness, col, minX, maxX, minY, maxY, renderType); // Top
-                    fillClamped(g, ix, iy + ih - thickness, ix + iw, iy + ih, col, minX, maxX, minY, maxY, renderType); // Bottom
-                    fillClamped(g, ix, iy + thickness, ix + thickness, iy + ih - thickness, col, minX, maxX, minY, maxY, renderType); // Left
-                    fillClamped(g, ix + iw - thickness, iy + thickness, ix + iw, iy + ih - thickness, col, minX, maxX, minY, maxY, renderType); // Right
+                    fillClamped(g, ix, iy, ix + iw, iy + thickness, col, minX, maxX, minY, maxY, renderType);
+                    fillClamped(g, ix, iy + ih - thickness, ix + iw, iy + ih, col, minX, maxX, minY, maxY, renderType);
+                    fillClamped(g, ix, iy + thickness, ix + thickness, iy + ih - thickness, col, minX, maxX, minY, maxY, renderType);
+                    fillClamped(g, ix + iw - thickness, iy + thickness, ix + iw, iy + ih - thickness, col, minX, maxX, minY, maxY, renderType);
                 } else {
                     fillClamped(g, ix, iy, ix + iw, iy + ih, col, minX, maxX, minY, maxY, renderType);
                 }
@@ -139,7 +138,7 @@ public class HelmetOverlayRenderer {
         } else if (shape.equals("circle")) {
             drawCircle(g, (int)x, (int)y, (int)(w / 2.0), col, outline, minX, maxX, minY, maxY, renderType);
         } else if (shape.equals("line")) {
-            // using width/height as x2/y2 if x2/y2 aren't specified
+
             double x2 = obj.has("x2") ? obj.get("x2").getAsDouble() : (x + w);
             double y2 = obj.has("y2") ? obj.get("y2").getAsDouble() : (y + h);
             drawLine(g, (int)x, (int)y, (int)x2, (int)y2, col, minX, maxX, minY, maxY, renderType);
@@ -184,7 +183,7 @@ public class HelmetOverlayRenderer {
                         try {
                             long parsedVal = Long.parseLong(colorHex, 16);
                             int pixelCol = (int) parsedVal;
-                            if ((pixelCol & 0xFF000000) != 0) { // only fill if not fully transparent
+                            if ((pixelCol & 0xFF000000) != 0) {
                                 int px1 = (int)(x + u * pixelW);
                                 int py1 = (int)(y + (gh - 1 - v) * pixelH);
                                 int px2 = (int)(x + u * pixelW + pixelW + 0.5);
@@ -217,7 +216,6 @@ public class HelmetOverlayRenderer {
         org.joml.Quaternionf conjugate = new org.joml.Quaternionf(camera.rotation()).conjugate();
         target.rotate(conjugate);
 
-        // target.z is in camera coordinate space (negative Z is forward in Minecraft camera space)
         if (target.z < 0) {
             double fovRad = Math.toRadians(mc.options.fov().get());
             double scale = (screenH / 2.0) / Math.tan(fovRad / 2.0);
@@ -227,9 +225,8 @@ public class HelmetOverlayRenderer {
             double screenY = (screenH / 2.0) - (target.y / dist) * scale;
 
             double billboardSize = scale / dist;
-            billboardSize = Math.min(screenH * 0.5, billboardSize); // clamp max size
+            billboardSize = Math.min(screenH * 0.5, billboardSize);
 
-            // No clipping limits on the helmet overlay screen
             double scaleFactor = billboardSize / 100.0;
 
             g.pose().pushPose();
@@ -256,7 +253,7 @@ public class HelmetOverlayRenderer {
             if (colorStr.startsWith("#")) {
                 long val = Long.parseLong(colorStr.substring(1), 16);
                 if (colorStr.length() <= 7) {
-                    return (int) (val | 0xFF000000); // add alpha if missing
+                    return (int) (val | 0xFF000000);
                 }
                 return (int) val;
             }
@@ -317,7 +314,7 @@ public class HelmetOverlayRenderer {
     }
 
     public static void drawLine(GuiGraphics g, int x1, int y1, int x2, int y2, int color, double minX, double maxX, double minY, double maxY, net.minecraft.client.renderer.RenderType renderType) {
-        // Bresenham's line algorithm drawn using pixel fills
+
         int dx = Math.abs(x2 - x1);
         int dy = Math.abs(y2 - y1);
         int sx = x1 < x2 ? 1 : -1;

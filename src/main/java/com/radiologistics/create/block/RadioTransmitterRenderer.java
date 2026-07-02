@@ -50,20 +50,16 @@ public class RadioTransmitterRenderer implements BlockEntityRenderer<RadioTransm
             poseStack.translate(-0.5f, -0.5f, -0.5f);
         }
 
-        // Translate to pivot point of the lever [8, 6, 10]
         poseStack.translate(8f / 16f, 6f / 16f, 10f / 16f);
 
-        // Apply rotation
         float rotation = be.getCurrentLeverRotation();
         poseStack.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(rotation));
 
-        // Translate back
         poseStack.translate(-8f / 16f, -6f / 16f, -10f / 16f);
 
-        // Render model
         BakedModel model = Minecraft.getInstance().getModelManager().getModel(LEVER_MODEL);
         VertexConsumer consumer = buffer.getBuffer(RenderType.cutout());
-        
+
         Minecraft.getInstance().getBlockRenderer().getModelRenderer().renderModel(
             poseStack.last(),
             consumer,

@@ -28,10 +28,13 @@ public abstract class AlgoNode {
     public abstract CompoundTag saveProperties();
     public abstract void loadProperties(CompoundTag tag);
 
-    /**
-     * Evaluates this node's output port value based on evaluated values at its input ports.
-     */
     public abstract Object evaluate(String outputPort, Map<String, Object> inputValues, EvaluationContext context);
+
+    protected final Map<String, String> defaultPortValues = new HashMap<>();
+
+    public Map<String, String> getDefaultPortValues() {
+        return defaultPortValues;
+    }
 
     public CompoundTag toNBT() {
         CompoundTag tag = new CompoundTag();
@@ -40,6 +43,13 @@ public abstract class AlgoNode {
         tag.putDouble("x", x);
         tag.putDouble("y", y);
         tag.put("properties", saveProperties());
+
+        CompoundTag defaultsTag = new CompoundTag();
+        for (Map.Entry<String, String> entry : defaultPortValues.entrySet()) {
+            defaultsTag.putString(entry.getKey(), entry.getValue());
+        }
+        tag.put("defaultPortValues", defaultsTag);
+
         return tag;
     }
 
@@ -53,6 +63,12 @@ public abstract class AlgoNode {
         AlgoNode node = createNode(type, id, x, y);
         if (node != null) {
             node.loadProperties(props);
+            if (tag.contains("defaultPortValues")) {
+                CompoundTag defaultsTag = tag.getCompound("defaultPortValues");
+                for (String key : defaultsTag.getAllKeys()) {
+                    node.defaultPortValues.put(key, defaultsTag.getString(key));
+                }
+            }
         }
         return node;
     }
@@ -86,6 +102,8 @@ public abstract class AlgoNode {
             case "tan" -> new TanNode(id, x, y);
             case "ctg" -> new CtgNode(id, x, y);
             case "active_target" -> new ActiveTargetNode(id, x, y);
+            case "custom_target" -> new com.radiologistics.create.node.nodes.CustomTargetNode(id, x, y);
+            case "detected_objects" -> new com.radiologistics.create.node.nodes.DetectedObjectsNode(id, x, y);
             case "redstone_output" -> new RedstoneOutputNode(id, x, y);
             case "link_input" -> new LinkInputNode(id, x, y);
             case "link_output" -> new LinkOutputNode(id, x, y);
@@ -122,6 +140,12 @@ public abstract class AlgoNode {
             case "pos_to_rot" -> new PosToRotNode(id, x, y);
             case "rot_to_pos" -> new RotToPosNode(id, x, y);
             case "cannon_rot" -> new CannonRotNode(id, x, y);
+            case "get_list" -> new GetListNode(id, x, y);
+            case "set_list" -> new SetListNode(id, x, y);
+            case "custom" -> new com.radiologistics.create.node.nodes.CustomNode(id, x, y);
+            case "camera_screen" -> new com.radiologistics.create.node.nodes.CameraScreenNode(id, x, y);
+            case "servo_control" -> new com.radiologistics.create.node.nodes.ServoControlNode(id, x, y);
+            case "servo_angle" -> new com.radiologistics.create.node.nodes.ServoAngleNode(id, x, y);
             default -> null;
         };
     }

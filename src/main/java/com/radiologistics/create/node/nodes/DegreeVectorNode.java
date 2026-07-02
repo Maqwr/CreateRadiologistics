@@ -37,9 +37,9 @@ public class DegreeVectorNode extends AlgoNode {
     public Object evaluate(String outputPort, Map<String, Object> inputValues, EvaluationContext context) {
         double a = toDouble(inputValues.get("a"));
         double b = toDouble(inputValues.get("b"));
-        
+
         double diff = Mth.wrapDegrees(b - a);
-        
+
         if (diff == Math.floor(diff) && !Double.isInfinite(diff)) {
             return (long) diff;
         }

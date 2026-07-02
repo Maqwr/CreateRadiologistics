@@ -15,10 +15,6 @@ import net.minecraft.world.phys.AABB;
 
 import java.util.*;
 
-/**
- * GizmosViewNode — a sink node that accepts a gizmos JSON string and
- * exposes the parsed data so the node editor can draw a live preview canvas.
- */
 public class GizmosViewNode extends AlgoNode {
     private String lastGizmosJson = "[]";
     private JsonArray lastParsed = new JsonArray();
@@ -36,7 +32,6 @@ public class GizmosViewNode extends AlgoNode {
     public String getLastGizmosJson() { return lastGizmosJson; }
     public JsonArray getLastParsed()  { return lastParsed; }
 
-    /** How many gizmo elements are currently buffered */
     public int getLastCount() { return lastParsed.size(); }
 
     @Override
@@ -49,14 +44,9 @@ public class GizmosViewNode extends AlgoNode {
         } catch (Exception e) {
             lastParsed = new JsonArray();
         }
-        return null; // sink — no output
+        return null;
     }
 
-    /**
-     * Returns a list of simple 2D draw commands for the node-editor mini-preview.
-     * Each entry: [shape, x, y, w, h, colorARGB]  (normalised 0..1 coordinates)
-     * Only type="2d" elements are rendered in the preview.
-     */
     public List<long[]> getPreviewRects() {
         List<long[]> out = new ArrayList<>();
         for (JsonElement el : lastParsed) {
@@ -72,7 +62,6 @@ public class GizmosViewNode extends AlgoNode {
                 double w = o.has("w") ? o.get("w").getAsDouble() : 100;
                 double h = o.has("h") ? o.get("h").getAsDouble() : 100;
 
-                // 1. Sky (Sky Blue)
                 out.add(new long[]{
                     (long)((x / 100.0) * 1000),
                     (long)((y / 100.0) * 1000),
@@ -81,7 +70,6 @@ public class GizmosViewNode extends AlgoNode {
                     0xFF87CEEB
                 });
 
-                // 2. Ground (Grass Green)
                 out.add(new long[]{
                     (long)((x / 100.0) * 1000),
                     (long)(((y + h / 2.0) / 100.0) * 1000),
@@ -90,7 +78,6 @@ public class GizmosViewNode extends AlgoNode {
                     0xFF557A46
                 });
 
-                // 3. Mock block/object in center (Oak Planks color)
                 out.add(new long[]{
                     (long)(((x + w * 0.4) / 100.0) * 1000),
                     (long)(((y + h * 0.4) / 100.0) * 1000),
@@ -99,7 +86,6 @@ public class GizmosViewNode extends AlgoNode {
                     0xFFB8621D
                 });
 
-                // 4. Crosshair - Horizontal (white-translucent)
                 out.add(new long[]{
                     (long)(((x + w * 0.45) / 100.0) * 1000),
                     (long)(((y + h * 0.49) / 100.0) * 1000),
@@ -108,7 +94,6 @@ public class GizmosViewNode extends AlgoNode {
                     0xAAFFFFFF
                 });
 
-                // 5. Crosshair - Vertical (white-translucent)
                 out.add(new long[]{
                     (long)(((x + w * 0.49) / 100.0) * 1000),
                     (long)(((y + h * 0.45) / 100.0) * 1000),
@@ -128,7 +113,6 @@ public class GizmosViewNode extends AlgoNode {
                 double pixelW = w / gw;
                 double pixelH = h / gh;
 
-                // Downsample preview for editor performance if grid is large
                 int step = 1;
                 int maxDim = Math.max(gw, gh);
                 if (maxDim > 80) {
@@ -172,7 +156,7 @@ public class GizmosViewNode extends AlgoNode {
                 int col = parsePreviewColor(colorStr, 0xFF00FFFF);
                 out.add(new long[]{(long)(nx*1000), (long)(ny*1000), (long)(nw*1000), (long)(nh*1000), col});
             }
-            if (out.size() >= 512) break; // cap for performance
+            if (out.size() >= 512) break;
         }
         return out;
     }

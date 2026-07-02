@@ -48,4 +48,12 @@ public class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.radiologistics.create.block.ScreenBlockEntity>> TRANSPARENT_SCREEN =
         BLOCK_ENTITY_TYPES.register("transparent_screen",
             () -> BlockEntityType.Builder.of(com.radiologistics.create.block.ScreenBlockEntity::new, ModBlocks.TRANSPARENT_SCREEN.get()).build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.radiologistics.create.block.ServoMotorBlockEntity>> SERVO_MOTOR =
+        BLOCK_ENTITY_TYPES.register("servo_motor",
+            () -> BlockEntityType.Builder.of(com.radiologistics.create.block.ServoMotorBlockEntity::new, ModBlocks.SERVO_MOTOR.get()).build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.radiologistics.create.block.SmartOpticalSensorBlockEntity>> SMART_OPTICAL_SENSOR =
+        BLOCK_ENTITY_TYPES.register("smart_optical_sensor",
+            () -> BlockEntityType.Builder.of(com.radiologistics.create.block.SmartOpticalSensorBlockEntity::new, ModBlocks.SMART_OPTICAL_SENSOR.get()).build(null));
 }

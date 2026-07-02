@@ -38,4 +38,6 @@ public class ModItems {
     public static final DeferredHolder<Item, Item> PILOT_HELMET = ITEMS.register("pilot_helmet", () -> new com.radiologistics.create.item.PilotHelmetItem(new Item.Properties().stacksTo(1)));
     public static final DeferredHolder<Item, Item> WIRE = ITEMS.register("wire", () -> new com.radiologistics.create.item.WireItem(new Item.Properties().stacksTo(64)));
     public static final DeferredHolder<Item, BlockItem> TRANSPARENT_SCREEN = ITEMS.register("transparent_screen", () -> new ModBlockItem(ModBlocks.TRANSPARENT_SCREEN.get(), new Item.Properties()));
+    public static final DeferredHolder<Item, BlockItem> SERVO_MOTOR = ITEMS.register("servo_motor", () -> new ModBlockItem(ModBlocks.SERVO_MOTOR.get(), new Item.Properties()));
+    public static final DeferredHolder<Item, BlockItem> SMART_OPTICAL_SENSOR = ITEMS.register("smart_optical_sensor", () -> new ModBlockItem(ModBlocks.SMART_OPTICAL_SENSOR.get(), new Item.Properties()));
 }

@@ -116,14 +116,14 @@ public class CameraFeedRenderer {
                 videoSource,
                 partialTicks,
                 bufferSource,
-                true,       // shouldUpdate (isLookingAtEnderman in decompiled code)
-                tvSize,     // connectedTvsAmount
-                pxSize,     // pixelSize
-                packedLight,// packedLight
-                false,      // paused
-                noAnim,     // fadeAnimation
-                noAnim,     // endermanAnimation
-                true        // isScreenOn
+                true,
+                tvSize,
+                pxSize,
+                packedLight,
+                false,
+                noAnim,
+                noAnim,
+                true
             );
 
             if (vertexConsumer instanceof VertexConsumer consumer) {
@@ -174,13 +174,11 @@ public class CameraFeedRenderer {
                                 g.pose().popPose();
                                 g.flush();
                             }
-                        } catch (Throwable t) {
-                            t.printStackTrace();
-                        }
+                        } catch (Throwable ignored) {}
                     }
                 }
         } catch (Throwable ignored) {
-            // Prevent crashes from missing reflection elements or invalid states
+
         }
     }
 

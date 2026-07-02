@@ -15,7 +15,7 @@ public class RedstoneOutputNode extends AlgoNode {
 
     public String getSide() { return side; }
     public void setSide(String side) { this.side = side; }
-    
+
     public int getPowerLevel() { return powerLevel; }
 
     @Override

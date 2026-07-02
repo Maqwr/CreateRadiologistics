@@ -6,7 +6,6 @@ import net.minecraft.nbt.CompoundTag;
 
 import java.util.*;
 
-/** A constant numeric value node. Clicking the node body opens an inline text editor. */
 public class NumberNode extends AlgoNode {
     private double value = 0;
 
@@ -18,7 +17,6 @@ public class NumberNode extends AlgoNode {
 
     public void setValue(double v) { this.value = v; }
 
-    /** Returns a clean string: integer if no fractional part, otherwise decimal. */
     public String getValueString() {
         if (value == Math.floor(value) && !Double.isInfinite(value)) {
             return String.valueOf((long) value);
@@ -44,7 +42,7 @@ public class NumberNode extends AlgoNode {
 
     @Override
     public Object evaluate(String outputPort, Map<String, Object> inputValues, EvaluationContext context) {
-        // Return as Long when integer, Double otherwise — downstream nodes handle both
+
         if (value == Math.floor(value) && !Double.isInfinite(value)) {
             return (long) value;
         }

@@ -17,15 +17,20 @@ public class ScreenBlockEntity extends BaseModuleBlockEntity {
 
     public void tick() {
         if (level != null && !level.isClientSide()) {
+            if (com.radiologistics.create.Radiologistics.isServerStopping) {
+                return;
+            }
             tickCount++;
             if (tickCount % 20 == 0) {
                 if (computerPos != null) {
-                    BlockEntity be = BaseModuleBlock.resolveBlockEntity(level, computerPos);
-                    if (!(be instanceof MainComputerBlockEntity)) {
-                        computerPos = null;
-                        setGizmosJson("[]");
-                        setChanged();
-                        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                    if (level.hasChunkAt(computerPos)) {
+                        BlockEntity be = BaseModuleBlock.resolveBlockEntity(level, computerPos);
+                        if (!(be instanceof MainComputerBlockEntity)) {
+                            computerPos = null;
+                            setGizmosJson("[]");
+                            setChanged();
+                            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                        }
                     }
                 }
             }

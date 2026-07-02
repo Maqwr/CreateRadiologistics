@@ -30,25 +30,26 @@ public class ModBlockItem extends BlockItem {
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
-        if (this.getBlock() instanceof BaseModuleBlock moduleBlock) {
+        Block block = this.getBlock();
+        if (block instanceof BaseModuleBlock || block instanceof com.radiologistics.create.block.ServoMotorBlock) {
             Level level = context.getLevel();
             net.minecraft.world.entity.player.Player player = context.getPlayer();
-            
+
             if (player != null) {
                 BlockPlaceContext placeContext = new BlockPlaceContext(context);
                 if (!placeContext.canPlace()) {
                     return super.useOn(context);
                 }
                 BlockPos placePos = placeContext.getClickedPos();
-                
-                boolean isAntenna = moduleBlock instanceof AntennaBlock;
+
+                boolean isAntenna = block instanceof AntennaBlock;
                 if (isAntenna) {
                     boolean stackedOnAntenna = level.getBlockState(placePos.below()).getBlock() instanceof AntennaBlock;
                     if (stackedOnAntenna) {
                         return super.useOn(context);
                     }
                 }
-                
+
                 BlockPos targetPos;
                 if (level.isClientSide()) {
                     targetPos = PlayerLinkManager.getClientPendingLink();
@@ -57,7 +58,7 @@ public class ModBlockItem extends BlockItem {
                 } else {
                     targetPos = null;
                 }
-                
+
                 if (targetPos == null) {
                     if (!level.isClientSide()) {
                         if (isAntenna) {
@@ -68,21 +69,23 @@ public class ModBlockItem extends BlockItem {
                     }
                     return InteractionResult.FAIL;
                 }
-                
-                double distSq = placePos.distSqr(targetPos);
+
+                net.minecraft.world.phys.Vec3 p1 = MainComputerBlockEntity.getWorldPos(level, placePos);
+                net.minecraft.world.phys.Vec3 p2 = MainComputerBlockEntity.getWorldPos(level, targetPos);
+                double distSq = p1.distanceToSqr(p2);
                 if (distSq > 100.0) {
                     if (!level.isClientSide()) {
                         player.displayClientMessage(Component.literal("too far").withStyle(ChatFormatting.RED), true);
                     }
                     return InteractionResult.FAIL;
                 }
-                
+
                 BlockEntity targetBE = BaseModuleBlock.resolveBlockEntity(level, targetPos);
                 if (targetBE instanceof MainComputerBlockEntity computer) {
-                    String moduleType = moduleBlock.getModuleType();
-                    if (!moduleType.equals("jammer") && computer.isModuleConnected(moduleType)) {
+                    String moduleType = (block instanceof BaseModuleBlock mb) ? mb.getModuleType() : "servo_motor";
+                    if (!moduleType.equals("jammer") && !moduleType.equals("gyroscope") && !moduleType.equals("screen") && !moduleType.equals("servo_motor") && computer.isModuleConnected(moduleType)) {
                         BlockPos existingPos = computer.getModulePos(moduleType);
-                        if (existingPos != null) {
+                        if (existingPos != null && !placePos.equals(existingPos)) {
                             BlockState existingState = level.getBlockState(existingPos);
                             if (existingState.getBlock() instanceof BaseModuleBlock b && b.getModuleType().equals(moduleType)) {
                                 if (!level.isClientSide()) {
@@ -93,7 +96,7 @@ public class ModBlockItem extends BlockItem {
                         }
                     }
                 } else if (isAntenna && targetBE instanceof RadioTransmitterBlockEntity) {
-                    // antennas can always connect to transmitter
+
                 } else {
                     if (!level.isClientSide()) {
                         if (isAntenna) {
@@ -112,7 +115,7 @@ public class ModBlockItem extends BlockItem {
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
         super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
-        
+
         boolean isShiftDown = false;
         if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             isShiftDown = ClientHelper.isShiftDown();

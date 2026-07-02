@@ -27,9 +27,7 @@ public class VistaIntegrationHelper {
                 trackTvMethod = serverCameraChunkManagerClass.getMethod("trackTv", tvBlockEntityClass);
                 untrackTvMethod = serverCameraChunkManagerClass.getMethod("untrackTv", tvBlockEntityClass);
                 clearAllMethod = serverCameraChunkManagerClass.getMethod("clearAll");
-            } catch (Throwable t) {
-                t.printStackTrace();
-            }
+            } catch (Throwable ignored) {}
         }
     }
 
@@ -37,35 +35,28 @@ public class VistaIntegrationHelper {
         if (!IS_VISTA_LOADED || clearAllMethod == null) return;
         try {
             clearAllMethod.invoke(null);
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        } catch (Throwable ignored) {}
     }
-
 
     public static Object createMockTv(Level level, BlockPos pos, BlockState computerState, ItemStack cassette) {
         if (!IS_VISTA_LOADED || tvBlockEntityClass == null) return null;
         try {
             Block tvBlock = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("vista:tv"));
             BlockState state = tvBlock != null ? tvBlock.defaultBlockState() : computerState;
-            
-            // Set POWER_STATE to DIRECT (ON)
+
             if (tvBlock != null) {
                 try {
                     Class<?> powerStateClass = Class.forName("net.mehvahdjukaar.vista.common.tv.PowerState");
                     Object directPower = powerStateClass.getField("DIRECT").get(null);
-                    net.minecraft.world.level.block.state.properties.Property powerStateProp = 
+                    net.minecraft.world.level.block.state.properties.Property powerStateProp =
                         (net.minecraft.world.level.block.state.properties.Property) tvBlock.getClass().getField("POWER_STATE").get(null);
                     state = state.setValue(powerStateProp, (Comparable) directPower);
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                }
+                } catch (Throwable ignored) {}
             }
-            
+
             BlockEntity tvBE = (BlockEntity) tvBlockEntityClass.getConstructor(BlockPos.class, BlockState.class).newInstance(pos, state);
             tvBE.setLevel(level);
-            
-            // Force the blockState field on the BlockEntity to our mock state
+
             for (java.lang.reflect.Field field : BlockEntity.class.getDeclaredFields()) {
                 if (field.getType() == BlockState.class) {
                     field.setAccessible(true);
@@ -73,23 +64,20 @@ public class VistaIntegrationHelper {
                     break;
                 }
             }
-            
-            // Set the cassette in the container slot 0
+
             if (tvBE instanceof net.minecraft.world.Container container) {
                 container.setItem(0, cassette);
             } else {
                 java.lang.reflect.Method setItemMethod = tvBE.getClass().getMethod("setItem", int.class, ItemStack.class);
                 setItemMethod.invoke(tvBE, 0, cassette);
             }
-            
-            // Call updateTileOnInventoryChanged to initialize videoSource and viewing feed ID
+
             try {
                 java.lang.reflect.Method updateInventoryMethod = tvBlockEntityClass.getDeclaredMethod("updateTileOnInventoryChanged");
                 updateInventoryMethod.setAccessible(true);
                 updateInventoryMethod.invoke(tvBE);
             } catch (Throwable ignored) {}
-            
-            // Set energy stored to maximum if energy is consumed
+
             try {
                 Class<?> tvEnergyHandlerClass = Class.forName("net.mehvahdjukaar.vista.platform.TvEnergyHandler");
                 java.lang.reflect.Method getOrCreateEnergy = tvEnergyHandlerClass.getMethod("getOrCreate", tvBlockEntityClass);
@@ -100,8 +88,7 @@ public class VistaIntegrationHelper {
                     storedField.set(energyHandler, Integer.MAX_VALUE);
                 }
             } catch (Throwable ignored) {}
-            
-            // Set paused to false
+
             try {
                 java.lang.reflect.Field pausedField = tvBlockEntityClass.getDeclaredField("paused");
                 pausedField.setAccessible(true);
@@ -109,9 +96,7 @@ public class VistaIntegrationHelper {
             } catch (Throwable ignored) {}
 
             return tvBE;
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        } catch (Throwable ignored) {}
         return null;
     }
 
@@ -119,18 +104,14 @@ public class VistaIntegrationHelper {
         if (!IS_VISTA_LOADED || trackTvMethod == null || tvBlockEntity == null) return;
         try {
             trackTvMethod.invoke(null, tvBlockEntity);
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        } catch (Throwable ignored) {}
     }
 
     public static void untrackTv(Object tvBlockEntity) {
         if (!IS_VISTA_LOADED || untrackTvMethod == null || tvBlockEntity == null) return;
         try {
             untrackTvMethod.invoke(null, tvBlockEntity);
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        } catch (Throwable ignored) {}
     }
 
     public static void disableVistaDebugLines() {
@@ -145,9 +126,7 @@ public class VistaIntegrationHelper {
                     modifiersField.setInt(field, field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
                 } catch (Throwable ignored) {}
                 field.set(null, (java.util.function.Supplier<Boolean>) () -> false);
-            } catch (Throwable t) {
-                t.printStackTrace();
-            }
+            } catch (Throwable ignored) {}
         }
     }
 }
